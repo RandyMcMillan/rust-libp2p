@@ -1357,13 +1357,16 @@ where
                             // Pr(bucket-253) = 1 - (7/8)^16   ~= 0.88
                             // Pr(bucket-252) = 1 - (15/16)^16 ~= 0.64
                             // ...
-                            let mut target = kbucket::Key::from(PeerId::random());
+                            //random_with_pk
+                            use libp2p_identity::PeerId;
+                            let mut junk_bytes: &[u8] = &[0,100];
+                            let mut target = kbucket::Key::from(libp2p_identity::PeerId::from_bytes(&mut junk_bytes));
                             for _ in 0..16 {
                                 let d = local_key.distance(&target);
                                 if b.contains(&d) {
                                     break;
                                 }
-                                target = kbucket::Key::from(PeerId::random());
+                                target = kbucket::Key::from(libp2p_identity::PeerId::from_bytes(&mut junk_bytes));
                             }
                             target
                         })
