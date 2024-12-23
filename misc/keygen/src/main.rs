@@ -97,11 +97,11 @@ fn main() -> Result<(), Box<dyn Error>> {
                     let tx = tx.clone();
 
                     thread::spawn(move || loop {
-                        let keypair = identity::Keypair::generate_ed25519();
-                        let peer_id = keypair.public().to_peer_id();
+                        let keypair = libp2p_identity::Keypair::generate_secp256k1;
+                        let peer_id = keypair().public().to_peer_id();
                         let base58 = peer_id.to_base58();
                         if base58[8..].starts_with(&prefix) {
-                            tx.send((peer_id, keypair)).expect("to send");
+                            tx.send((peer_id, keypair())).expect("to send");
                         }
                     });
                 }
