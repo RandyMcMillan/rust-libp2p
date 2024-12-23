@@ -28,6 +28,9 @@ use std::{
 };
 
 use futures::stream::StreamExt;
+use git2::Repository;
+use git2::ErrorCode;
+use git2::Config;
 use libp2p::{
     gossipsub, mdns, noise,
     swarm::{NetworkBehaviour, SwarmEvent},
@@ -35,6 +38,10 @@ use libp2p::{
 };
 use tokio::{io, io::AsyncBufReadExt, select};
 use tracing_subscriber::EnvFilter;
+
+use tracing_subscriber::fmt::format;
+
+use tracing_subscriber::fmt::format::Format;
 
 // We create a custom network behaviour that combines Gossipsub and Mdns.
 #[derive(NetworkBehaviour)]
@@ -87,7 +94,27 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .build();
 
     // Create a Gossipsub topic
-    let topic = gossipsub::IdentTopic::new("test-net");
+    // Open the Git repository
+    let repo = Repository::open(".")?; // Opens the repository in the current directory
+
+    // Get the reference to HEAD
+    let head = repo.head()?;
+
+    // Print the name of HEAD (e.g., "refs/heads/main" or "HEAD")
+    println!("HEAD: {}", head.name().unwrap_or("HEAD"));
+
+    // Get the commit object that HEAD points to
+    let commit = head.peel_to_commit()?;
+
+    // Print the commit ID (SHA-1 hash)
+    println!("Commit ID: {}", commit.id());
+
+    // Optionally, print other commit information
+    println!("Commit message: {}", commit.message().unwrap_or("No message"));
+
+
+
+    let topic = gossipsub::IdentTopic::new(format!("{}", commit.id()));
     // subscribes to our topic
     swarm.behaviour_mut().gossipsub.subscribe(&topic)?;
 
