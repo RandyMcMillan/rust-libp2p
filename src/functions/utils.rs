@@ -1,9 +1,9 @@
 use bech32::{ToBase32, Variant};
+use rand::Rng;
 
 pub enum Prefix {
     Npub,
     Nsec,
-    Note,
 }
 
 // Display 'trait' needed for enum "to_string()"
@@ -12,7 +12,6 @@ impl std::fmt::Display for Prefix {
         match self {
             Prefix::Npub => write!(f, "npub"),
             Prefix::Nsec => write!(f, "nsec"),
-            Prefix::Note => write!(f, "note"),
         }
     }
 }
@@ -26,4 +25,11 @@ pub fn bech32_encode(hrp: Prefix, hex_key: &String) -> String {
         Variant::Bech32,
     )
     .expect("Could not bech32-encode data")
+}
+
+pub fn random_hash() -> String {
+    let mut rng = rand::thread_rng();
+    let mut bytes = [0u8; 32];
+    rng.fill(&mut bytes);
+    hex::encode(bytes)
 }

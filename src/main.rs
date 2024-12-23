@@ -1,24 +1,50 @@
-use crate::functions::generate_private_key::GeneratePrivateKey;
+// add tokio main
 
-use crate::functions::generate_public_key::GeneratePublicKey;
+use std::vec;
 
-use crate::functions::convert_key::ConvertKey;
+use rusted_nostr_tools::client::Client;
+use rusted_nostr_tools::req::ReqFilter;
 
-pub mod functions;
+use tungstenite::Message;
 
-fn main() {
-    let keys = GeneratePrivateKey::new();
-    println!("Hex Private Key: {}", keys.hex_private_key());
-    println!("Bech32 Private Key: {}", keys.bech32_private_key());
+fn handle_message(relay_url: &String, message: &Message) -> Result<(), String> {
+    println!("Received message from {}: {:?}", relay_url, message);
 
-    let pubkey = GeneratePublicKey::new(keys.hex_private_key());
-    println!("Hex Public Key: {}", pubkey.hex_public_key());
-    println!("Bech32 Public Key: {}", pubkey.bech32_public_key());
+    println!("Events: {:?}", message);
 
-    let hex_key = ConvertKey::to_hex(keys.bech32_private_key());
-    let bech32_pubkey = ConvertKey::to_bech32_public_key(pubkey.hex_public_key());
-    let bech32_privkey = ConvertKey::to_bech32_private_key(keys.hex_private_key());
-    println!("Hex Key: {}", hex_key);
-    println!("Bech32 Pubkey: {}", bech32_pubkey);
-    println!("Bech32 Privkey: {}", bech32_privkey);
+    Ok(())
+}
+
+#[tokio::main]
+async fn main() {
+    let mut nostr_client = Client::new(vec!["wss://nostr.foundrydigital.com"])
+        .await
+        .unwrap();
+
+    // Run a new thread to handle messages
+
+    println!("Listening...");
+    let events = nostr_client.next_data().await.unwrap();
+    print!("Events: {:?}", events);
+    for (relay_url, message) in events.iter() {
+        handle_message(relay_url, message).unwrap();
+    }
+
+    // Subscribe to my last text note
+    let subscription_id = nostr_client
+        .subscribe(vec![ReqFilter {
+            ids: None,
+            authors: None,
+            kinds: Some(vec![0]),
+            e: None,
+            p: None,
+            since: None,
+            until: None,
+            limit: Some(10),
+        }])
+        .await
+        .unwrap();
+
+    // Unsubscribe
+    nostr_client.unsubscribe(&subscription_id).await.unwrap();
 }
