@@ -2,7 +2,7 @@ alias d := doc
 alias l := lint
 alias uf := update-flake-dependencies
 alias uc := update-cargo-dependencies
-alias r := run
+#alias r := run
 alias t := cargo-test
 alias b := build
 alias rr := run-release
@@ -51,8 +51,84 @@ lint:
 
 keygen:
     cargo run --bin keygen rand --json > identity.json
-run:
-    cargo run
+
+run-autonat-client:
+    cargo run --bin   autonat_client
+
+run-autonat-server:
+    cargo run --bin   autonat_server
+
+run-autonatv2-client:
+    cargo run --bin   autonatv2_client
+
+run-autonatv2-server:
+    cargo run --bin   autonatv2_server
+
+run-browser-webrtc-example:
+    cargo run --bin   browser-webrtc-example
+
+run-chat-example:
+    cargo run --bin   chat-example
+
+dcutr-example:
+    cargo run --bin   dcutr-example
+
+distributed-key-value-store-example:
+    cargo run --bin   distributed-key-value-store-example
+
+file-sharing-example:
+    cargo run --bin   file-sharing-example
+
+hole-punching-tests:
+    cargo run --bin   hole-punching-tests
+
+identify-example:
+    cargo run --bin   identify-example
+
+ipfs-kad-example:
+    cargo run --bin   ipfs-kad-example
+
+ipfs-private-example:
+    cargo run --bin   ipfs-private-example
+
+libp2p-server:
+    cargo run --bin   libp2p-server
+
+metrics-example:
+    cargo run --bin   metrics-example
+
+native_ping:
+    cargo run --bin   native_ping
+
+perf:
+    cargo run --bin   perf
+
+ping-example:
+    cargo run --bin   ping-example
+
+relay-server-example:
+    cargo run --bin   relay-server-example
+
+rendezvous-example:
+    cargo run --bin   rendezvous-example
+
+rzv-discover:
+    cargo run --bin   rzv-discover
+
+rzv-identify:
+    cargo run --bin   rzv-identify
+
+rzv-register:
+    cargo run --bin   rzv-register
+
+stream-example:
+    cargo run --bin   stream-example
+
+upnp-example:
+    cargo run --bin   upnp-example
+
+wasm_ping:
+    cargo run --bin   wasm_ping
 
 build:
     cargo build
