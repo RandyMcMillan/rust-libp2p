@@ -52,22 +52,22 @@ lint:
 keygen:
     cargo run --bin keygen rand --json > identity.json
 
-run-autonat-client:
+autonat-client:
     cargo run --bin   autonat_client
 
-run-autonat-server:
+autonat-server:
     cargo run --bin   autonat_server
 
-run-autonatv2-client:
+autonatv2-client:
     cargo run --bin   autonatv2_client
 
-run-autonatv2-server:
+autonatv2-server:
     cargo run --bin   autonatv2_server
 
-run-browser-webrtc-example:
+browser-webrtc-example:
     cargo run --bin   browser-webrtc-example
 
-run-chat-example:
+chat-example:
     cargo run --bin   chat-example
 
 dcutr-example:
@@ -107,7 +107,7 @@ ping-example:
     cargo run --bin   ping-example
 
 relay-server-example:
-    cargo run --bin   relay-server-example
+    cargo run --bin   relay-server-example --  --secret-key-seed 0 --port 1111
 
 rendezvous-example:
     cargo run --bin   rendezvous-example
