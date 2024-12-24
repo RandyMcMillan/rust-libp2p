@@ -114,8 +114,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
 
 
-    let topic = gossipsub::IdentTopic::new(format!("{:>064}", commit.id()));
-    println!("Topic: {}", topic);
+    let topic = gossipsub::IdentTopic::new(format!("{:0>64}", commit.id()));
+    println!("Topic: {:0>64}", topic);
     // subscribes to our topic
     swarm.behaviour_mut().gossipsub.subscribe(&topic)?;
 
