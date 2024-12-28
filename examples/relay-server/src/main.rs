@@ -47,6 +47,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Create a static known PeerId based on given secret
     let local_key: identity::Keypair = generate_ed25519(opt.secret_key_seed);
 
+    println!("local_key={:?}", local_key);
+
     let mut swarm = libp2p::SwarmBuilder::with_existing_identity(local_key)
         .with_tokio()
         .with_tcp(
@@ -59,7 +61,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             relay: relay::Behaviour::new(key.public().to_peer_id(), Default::default()),
             ping: ping::Behaviour::new(ping::Config::new()),
             identify: identify::Behaviour::new(identify::Config::new(
-                "/TODO/0.0.1".to_string(),
+                "/GNOSTR/0.0.1".to_string(),
                 key.public(),
             )),
         })?
@@ -94,10 +96,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     swarm.add_external_address(observed_addr.clone());
                 }
 
-                println!("{event:?}")
+                println!("99:{event:?}")
             }
             SwarmEvent::NewListenAddr { address, .. } => {
-                println!("Listening on {address:?}");
+                println!("102:Listening on {address:?}");
             }
             _ => {}
         }

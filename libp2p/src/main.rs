@@ -1,9 +1,7 @@
-// add tokio main
-
 use std::vec;
 
-use rusted_nostr_tools::client::Client;
-use rusted_nostr_tools::req::ReqFilter;
+use libp2p::client::Client;
+use libp2p::ws::req::ReqFilter;
 
 use tungstenite::Message;
 
@@ -17,7 +15,7 @@ fn handle_message(relay_url: &String, message: &Message) -> Result<(), String> {
 
 #[tokio::main]
 async fn main() {
-    let mut nostr_client = Client::new(vec!["wss://nostr.foundrydigital.com"])
+    let mut nostr_client = Client::new(vec!["wss://relay.damus.io"])
         .await
         .unwrap();
 
@@ -25,7 +23,7 @@ async fn main() {
 
     println!("Listening...");
     let events = nostr_client.next_data().await.unwrap();
-    print!("Events: {:?}", events);
+    println!("Events: {:?}", events);
     for (relay_url, message) in events.iter() {
         handle_message(relay_url, message).unwrap();
     }

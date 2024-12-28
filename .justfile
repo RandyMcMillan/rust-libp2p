@@ -104,7 +104,8 @@ perf:
     cargo run --bin   perf
 
 ping-example:
-    cargo run --bin   ping-example
+    just relay-server-example & \
+    cargo run --bin   ping-example --  /ip4/127.0.0.1/tcp/1111
 
 relay-server-example:
     cargo run --bin   relay-server-example --  --secret-key-seed 0 --port 1111

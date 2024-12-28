@@ -5,7 +5,7 @@ use std::sync::Arc;
 use thiserror::Error;
 use tungstenite::Message;
 
-use crate::websocket::{
+use crate::ws::{
     req::{Req, ReqFilter},
     ws::{SimplifiedWS, SimplifiedWSError},
 };
@@ -101,7 +101,7 @@ impl Client {
         Ok(())
     }
 
-    #[cfg(not(feature = "async"))]
+    #[cfg(not(feature = "async-std"))]
     /// Get next data from the relays
     /// # Example
     /// ```rust
