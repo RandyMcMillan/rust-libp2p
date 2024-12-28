@@ -1,6 +1,6 @@
 alias d := doc
-alias l := lint
-alias uf := update-flake-dependencies
+alias l := nix-lint
+alias uf := nix-update-flake-dependencies
 alias uc := update-cargo-dependencies
 #alias r := run
 alias t := cargo-test
@@ -14,7 +14,7 @@ default:
 clippy:
     cargo clippy --all-targets --all-features
 
-actionlint:
+nix-actionlint:
     nix develop .#actionlintShell --command actionlint
 
 deny:
@@ -23,19 +23,19 @@ deny:
 cargo-test:
     cargo test
 
-cargo-diet:
+nix-cargo-diet:
     nix develop .#lintShell --command cargo diet
 
-cargo-tarpaulin:
+nix-cargo-tarpaulin:
     nix develop .#lintShell --command cargo tarpaulin --out html --exclude-files "benches/*"
 
-cargo-public-api:
+nix-cargo-public-api:
     nix develop .#lintShell --command cargo public-api
 
-cargo-diff:
+nix-cargo-diff:
     nix develop .#lintShell --command cargo public-api diff
 
-lint:
+nix-lint:
     nix develop .#lintShell --command cargo diet
     nix develop .#lintShell --command cargo deny check licenses sources
     nix develop .#lintShell --command typos
@@ -149,14 +149,14 @@ update-cargo-dependencies:
 cargo-future:
     cargo check --future-incompat-report
 
-update-flake-dependencies:
+nix-update-flake-dependencies:
     nix flake update --commit-lock-file
 
 cargo-watch:
     cargo watch -x check -x test -x build
 
 # build all examples
-examples:
+nix-examples:
     nix develop --command $SHELL
     example_list=$(cargo build --example 2>&1 | sed '1,2d' | awk '{print $1}')
 
@@ -166,7 +166,7 @@ examples:
     cargo build --example "$example"
     done
 
-examples-msrv:
+nix-examples-msrv:
     set -x
     nix develop .#msrvShell --command
     rustc --version
