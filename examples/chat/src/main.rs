@@ -95,7 +95,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Create a Gossipsub topic
     // Open the Git repository
-    let repo = Repository::open(".")?; // Opens the repository in the current directory
+    let repo = Repository::discover(".")?; // Opens the repository in the current directory
 
     // Get the reference to HEAD
     let head = repo.head()?;
