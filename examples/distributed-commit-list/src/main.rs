@@ -82,6 +82,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .with_env_filter(EnvFilter::from_default_env())
         .try_init();
 
+    //TODO create key from arg
+    let args = Args::parse();
+
     // We create a custom network behaviour that combines Kademlia and mDNS.
     #[derive(NetworkBehaviour)]
     struct Behaviour {
@@ -112,22 +115,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     swarm.behaviour_mut().kademlia.set_mode(Some(Mode::Server));
 
-
-
-
-
-    let args = Args::parse();
-        match run(&args) {
-            Ok(()) => {
+    //
+    match run(&args) {
+        Ok(()) => {
 
 
 
 
 
 
-            }
-            Err(e) => println!("error: {}", e),
         }
+        Err(e) => println!("error: {}", e),
+    }
+    //
 
     ////push commit hashes and commit diffs
 
