@@ -5,7 +5,7 @@ use clap::Parser;
 use git2::{Commit, DiffOptions, ObjectType, Repository, Signature, Time};
 use git2::{DiffFormat, Error as GitError, Pathspec};
 use std::str;
-use time::Timespec;
+//use time::Timespec;
 
 use futures::stream::StreamExt;
 use libp2p::{
@@ -82,17 +82,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .with_env_filter(EnvFilter::from_default_env())
         .try_init();
 
-    let args = Args::parse();
-        match run(&args) {
-            Ok(()) => {}
-            Err(e) => println!("error: {}", e),
-        }
-
-    let path = args.flag_git_dir.as_ref().map(|s| &s[..]).unwrap_or(".");
-    let repo = Repository::open(path)?;
-    let mut revwalk = repo.revwalk()?;
-
-
     // We create a custom network behaviour that combines Kademlia and mDNS.
     #[derive(NetworkBehaviour)]
     struct Behaviour {
@@ -124,6 +113,21 @@ async fn main() -> Result<(), Box<dyn Error>> {
     swarm.behaviour_mut().kademlia.set_mode(Some(Mode::Server));
 
 
+
+
+
+    let args = Args::parse();
+        match run(&args) {
+            Ok(()) => {
+
+
+
+
+
+
+            }
+            Err(e) => println!("error: {}", e),
+        }
 
     ////push commit hashes and commit diffs
 
@@ -494,16 +498,25 @@ fn run(args: &Args) -> Result<(), GitError> {
     // print!
     for commit in revwalk {
         let commit = commit?;
+
+
         print_commit(&commit);
+
+
         if !args.flag_patch || commit.parents().len() > 1 {
             continue;
         }
+
         let a = if commit.parents().len() == 1 {
             let parent = commit.parent(0)?;
             Some(parent.tree()?)
         } else {
             None
         };
+
+
+
+        //push diff to commit_key
         let b = commit.tree()?;
         let diff = repo.diff_tree_to_tree(a.as_ref(), Some(&b), Some(&mut diffopts2))?;
         diff.print(DiffFormat::Patch, |_delta, _hunk, line| {
