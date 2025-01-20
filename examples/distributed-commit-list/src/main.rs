@@ -1,11 +1,12 @@
 #![doc = include_str!("../README.md")]
 
 use std::error::Error;
-use clap::{Parser};
+use clap::Parser;
 use git2::{Commit, DiffOptions, ObjectType, Repository, Signature, Time};
 use git2::{DiffFormat, Error as GitError, Pathspec};
 use std::str;
 //use std::env::Args;
+use time::Timespec;
 
 use futures::stream::StreamExt;
 use libp2p::{
