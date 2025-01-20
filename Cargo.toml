@@ -7,6 +7,7 @@ members = [
     "examples/chat",
     "examples/dcutr",
     "examples/distributed-key-value-store",
+    "examples/distributed-commit-list",
     "examples/file-sharing",
     "examples/identify",
     "examples/ipfs-kad",
@@ -117,6 +118,7 @@ libp2p-yamux = { version = "0.46.0", path = "muxers/yamux" }
 # External dependencies
 async-std-resolver = { version = "0.25.0-alpha.4", default-features = false }
 asynchronous-codec = { version = "0.7.0" }
+clap = { version = "4.4.13", features = ["derive"] }
 futures = "0.3.30"
 futures-bounded = { version = "0.2.4" }
 futures-rustls = { version = "0.26.0", default-features = false }

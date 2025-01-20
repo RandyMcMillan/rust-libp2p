@@ -1413,6 +1413,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "distributed-commit-list"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "clap",
+ "futures",
+ "git2",
+ "libp2p",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "distributed-key-value-store-example"
 version = "0.1.0"
 dependencies = [
