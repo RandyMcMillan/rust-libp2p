@@ -192,7 +192,7 @@ dependencies = [
  "num-traits",
  "rusticata-macros",
  "thiserror 1.0.63",
- "time",
+ "time 0.3.36",
 ]
 
 [[package]]
@@ -208,7 +208,7 @@ dependencies = [
  "num-traits",
  "rusticata-macros",
  "thiserror 1.0.63",
- "time",
+ "time 0.3.36",
 ]
 
 [[package]]
@@ -1421,6 +1421,7 @@ dependencies = [
  "futures",
  "git2",
  "libp2p",
+ "time 0.1.45",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -5091,7 +5092,7 @@ checksum = "52c4f3084aa3bc7dfbba4eff4fab2a54db4324965d8872ab933565e6fbd83bc6"
 dependencies = [
  "pem",
  "ring 0.16.20",
- "time",
+ "time 0.3.36",
  "x509-parser 0.15.1",
  "yasna",
 ]
@@ -6399,6 +6400,17 @@ dependencies = [
 
 [[package]]
 name = "time"
+version = "0.1.45"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b797afad3f312d1c66a56d11d0316f916356d11bd158fbc6ca6389ff6bf805a"
+dependencies = [
+ "libc",
+ "wasi 0.10.0+wasi-snapshot-preview1",
+ "winapi",
+]
+
+[[package]]
+name = "time"
 version = "0.3.36"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5dfd88e563464686c916c7e46e623e520ddc6d79fa6641390f2e3fa86e83e885"
@@ -7069,6 +7081,12 @@ checksum = "cccddf32554fecc6acb585f82a32a72e28b48f8c4c1883ddfeeeaa96f7d8e519"
 
 [[package]]
 name = "wasi"
+version = "0.10.0+wasi-snapshot-preview1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1a143597ca7c7793eff794def352d41792a93c481eb1042423ff7ff72ba2c31f"
+
+[[package]]
+name = "wasi"
 version = "0.11.0+wasi-snapshot-preview1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9c8d87e72b64a3b4db28d11ce29237c246188f4f51057d65a7eab63b7987e423"
@@ -7270,7 +7288,7 @@ dependencies = [
  "smol_str",
  "stun 0.5.1",
  "thiserror 1.0.63",
- "time",
+ "time 0.3.36",
  "tokio",
  "turn",
  "url",
@@ -7801,7 +7819,7 @@ dependencies = [
  "ring 0.16.20",
  "rusticata-macros",
  "thiserror 1.0.63",
- "time",
+ "time 0.3.36",
 ]
 
 [[package]]
@@ -7818,7 +7836,7 @@ dependencies = [
  "oid-registry 0.7.0",
  "rusticata-macros",
  "thiserror 1.0.63",
- "time",
+ "time 0.3.36",
 ]
 
 [[package]]
@@ -7873,7 +7891,7 @@ version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e17bb3549cc1321ae1296b9cdc2698e2b6cb1992adfa19a8c72e5b7a738f44cd"
 dependencies = [
- "time",
+ "time 0.3.36",
 ]
 
 [[package]]
