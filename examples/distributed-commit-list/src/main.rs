@@ -83,10 +83,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .try_init();
 
     let args = Args::parse();
-        //match run(&args) {
-        //    Ok(()) => {}
-        //    Err(e) => println!("error: {}", e),
-        //}
+        match run(&args) {
+            Ok(()) => {}
+            Err(e) => println!("error: {}", e),
+        }
 
     let path = args.flag_git_dir.as_ref().map(|s| &s[..]).unwrap_or(".");
     let repo = Repository::open(path)?;
