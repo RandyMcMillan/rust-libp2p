@@ -58,16 +58,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .build();
 
     swarm.behaviour_mut().kademlia.set_mode(Some(Mode::Server));
+    //net work is primed
 
+    ////
+    //match run(&args) {
+    //    Ok(()) => {
+
+    //    }
+    //    Err(e) => println!("error: {}", e),
+    //}
     //
-    match run(&args) {
-        Ok(()) => {
-
-        }
-        Err(e) => println!("error: {}", e),
-    }
-    //
-
+    let result = run(&args)?;
+    println!("result={:?}", result);
     ////push commit hashes and commit diffs
 
 
@@ -427,7 +429,26 @@ fn run(args: &Args) -> Result<(), GitError> {
         let commit = commit?;
 
 
-        print_commit_header(&commit);
+        //TODO construct nostr event
+        println!("commit.id={}", &commit.id());
+        //println!("commit.tree_id={}", &commit.tree_id());
+        //println!("commit.tree={:?}", &commit.tree());
+        //println!("commit.raw={:?}", &commit.raw());
+        //println!("commit.message={:?}", &commit.message());
+        ////println!("commit.message_bytes{:?}", &commit.message_bytes());
+        //println!("commit.message_encoding={:?}", &commit.message_encoding());
+        //println!("commit.message_raw={:?}", &commit.message_raw());
+        ////println!("commit.messate_raw_bytes={:?}", &commit.message_raw_bytes());
+        println!("commit.raw_header={:?}", &commit.raw_header());
+        ////println!("commit.header_field_bytes={:?}", &commit.header_field_bytes());
+        ////println!("commit.raw_header_bytes={:?}", &commit.raw_header_bytes());
+        //println!("commit.summary={:?}", &commit.summary());
+        ////println!("commit.summary_bytes={:?}", &commit.summary_bytes());
+        //println!("commit.body={:?}", &commit.body());
+        ////println!("commit.body_bytes={:?}", &commit.body_bytes());
+        //println!("commit.time={:?}", &commit.time());
+        //println!("commit.author={:?}", &commit.author().name());
+        //print_commit_header(&commit);
 
 
         if !args.flag_patch || commit.parents().len() > 1 {
@@ -461,23 +482,8 @@ fn run(args: &Args) -> Result<(), GitError> {
     Ok(())
 }
 
-impl Args {
-    fn min_parents(&self) -> usize {
-        if self.flag_no_min_parents {
-            return 0;
-        }
-        self.flag_min_parents
-            .unwrap_or(if self.flag_merges { 2 } else { 0 })
-    }
 
-    fn max_parents(&self) -> Option<usize> {
-        if self.flag_no_max_parents {
-            return None;
-        }
-        self.flag_max_parents
-            .or(if self.flag_no_merges { Some(1) } else { None })
-    }
-}
+//TODO Server Mode or ??
 #[derive(Parser)]
 struct Args {
     #[structopt(name = "topo-order", long)]
@@ -532,4 +538,22 @@ struct Args {
     arg_commit: Vec<String>,
     #[structopt(name = "spec", last = true)]
     arg_spec: Vec<String>,
+}
+
+impl Args {
+    fn min_parents(&self) -> usize {
+        if self.flag_no_min_parents {
+            return 0;
+        }
+        self.flag_min_parents
+            .unwrap_or(if self.flag_merges { 2 } else { 0 })
+    }
+
+    fn max_parents(&self) -> Option<usize> {
+        if self.flag_no_max_parents {
+            return None;
+        }
+        self.flag_max_parents
+            .or(if self.flag_no_merges { Some(1) } else { None })
+    }
 }
