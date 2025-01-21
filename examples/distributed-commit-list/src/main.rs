@@ -19,61 +19,6 @@ use tokio::{
     select,
 };
 use tracing_subscriber::EnvFilter;
-#[derive(Parser)]
-struct Args {
-    #[structopt(name = "topo-order", long)]
-    /// sort commits in topological order
-    flag_topo_order: bool,
-    #[structopt(name = "date-order", long)]
-    /// sort commits in date order
-    flag_date_order: bool,
-    #[structopt(name = "reverse", long)]
-    /// sort commits in reverse
-    flag_reverse: bool,
-    #[structopt(name = "author", long)]
-    /// author to sort by
-    flag_author: Option<String>,
-    #[structopt(name = "committer", long)]
-    /// committer to sort by
-    flag_committer: Option<String>,
-    #[structopt(name = "pat", long = "grep")]
-    /// pattern to filter commit messages by
-    flag_grep: Option<String>,
-    #[structopt(name = "dir", long = "git-dir")]
-    /// alternative git directory to use
-    flag_git_dir: Option<String>,
-    #[structopt(name = "skip", long)]
-    /// number of commits to skip
-    flag_skip: Option<usize>,
-    #[structopt(name = "max-count", short = 'n', long)]
-    /// maximum number of commits to show
-    flag_max_count: Option<usize>,
-    #[structopt(name = "merges", long)]
-    /// only show merge commits
-    flag_merges: bool,
-    #[structopt(name = "no-merges", long)]
-    /// don't show merge commits
-    flag_no_merges: bool,
-    #[structopt(name = "no-min-parents", long)]
-    /// don't require a minimum number of parents
-    flag_no_min_parents: bool,
-    #[structopt(name = "no-max-parents", long)]
-    /// don't require a maximum number of parents
-    flag_no_max_parents: bool,
-    #[structopt(name = "max-parents")]
-    /// specify a maximum number of parents for a commit
-    flag_max_parents: Option<usize>,
-    #[structopt(name = "min-parents")]
-    /// specify a minimum number of parents for a commit
-    flag_min_parents: Option<usize>,
-    #[structopt(name = "patch", long, short)]
-    /// show commit diff
-    flag_patch: bool,
-    #[structopt(name = "commit")]
-    arg_commit: Vec<String>,
-    #[structopt(name = "spec", last = true)]
-    arg_spec: Vec<String>,
-}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -533,5 +478,58 @@ impl Args {
             .or(if self.flag_no_merges { Some(1) } else { None })
     }
 }
-
-
+#[derive(Parser)]
+struct Args {
+    #[structopt(name = "topo-order", long)]
+    /// sort commits in topological order
+    flag_topo_order: bool,
+    #[structopt(name = "date-order", long)]
+    /// sort commits in date order
+    flag_date_order: bool,
+    #[structopt(name = "reverse", long)]
+    /// sort commits in reverse
+    flag_reverse: bool,
+    #[structopt(name = "author", long)]
+    /// author to sort by
+    flag_author: Option<String>,
+    #[structopt(name = "committer", long)]
+    /// committer to sort by
+    flag_committer: Option<String>,
+    #[structopt(name = "pat", long = "grep")]
+    /// pattern to filter commit messages by
+    flag_grep: Option<String>,
+    #[structopt(name = "dir", long = "git-dir")]
+    /// alternative git directory to use
+    flag_git_dir: Option<String>,
+    #[structopt(name = "skip", long)]
+    /// number of commits to skip
+    flag_skip: Option<usize>,
+    #[structopt(name = "max-count", short = 'n', long)]
+    /// maximum number of commits to show
+    flag_max_count: Option<usize>,
+    #[structopt(name = "merges", long)]
+    /// only show merge commits
+    flag_merges: bool,
+    #[structopt(name = "no-merges", long)]
+    /// don't show merge commits
+    flag_no_merges: bool,
+    #[structopt(name = "no-min-parents", long)]
+    /// don't require a minimum number of parents
+    flag_no_min_parents: bool,
+    #[structopt(name = "no-max-parents", long)]
+    /// don't require a maximum number of parents
+    flag_no_max_parents: bool,
+    #[structopt(name = "max-parents")]
+    /// specify a maximum number of parents for a commit
+    flag_max_parents: Option<usize>,
+    #[structopt(name = "min-parents")]
+    /// specify a minimum number of parents for a commit
+    flag_min_parents: Option<usize>,
+    #[structopt(name = "patch", long, short)]
+    /// show commit diff
+    flag_patch: bool,
+    #[structopt(name = "commit")]
+    arg_commit: Vec<String>,
+    #[structopt(name = "spec", last = true)]
+    arg_spec: Vec<String>,
+}
