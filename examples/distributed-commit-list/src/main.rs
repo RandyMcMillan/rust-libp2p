@@ -441,17 +441,25 @@ fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<(), Gi
         println!("&commit.id={}", &commit.id());
 
 
-        //match Some(&commit.id()) {
-            //let _ = Some(&commit.id()) =>
-            let commit_key = kad::RecordKey::new(&format!("{}", &commit.id()));
+            let key = kad::RecordKey::new(&format!("{}", &commit.id()));
+
+            //push commit key and commit content as value
+            //let value = Vec::from(commit.message_bytes().clone());
+            let value = Vec::from(commit.message_bytes());
+            let record = kad::Record {
+                key,
+                value,
+                publisher: None,
+                expires: None,
+            };
             kademlia
-                .start_providing(commit_key)
+                .put_record(record, kad::Quorum::One)
+                .expect("Failed to store record locally.");
+            let key = kad::RecordKey::new(&format!("{}", &commit.id()));
+            kademlia
+                .start_providing(key)
                 .expect("Failed to start providing key");
-            //None => {
-            //    eprintln!("Expected commit.id()");
-            //    return;
-            //}
-        //}
+
 
 
         //println!("commit.tree_id={}", &commit.tree_id());
@@ -475,7 +483,7 @@ fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<(), Gi
 
         //raw_header
         //println!("commit.raw_header={:?}", commit.raw_header());
-        let mut raw_header_parts = commit.raw_header().clone().unwrap().split("\n");
+        let raw_header_parts = commit.raw_header().clone().unwrap().split("\n");
         for part in raw_header_parts {
             println!("raw_header part={}:{}", part_index, part.replace("", ""));
             part_index += 1;
