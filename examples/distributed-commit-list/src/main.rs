@@ -432,20 +432,29 @@ fn run(args: &Args) -> Result<(), GitError> {
         //TODO construct nostr event
         let commit_privkey: String = String::from(format!("{:0>64}", &commit.id()));
         println!("commit_privkey={}", &commit_privkey);
-        println!("{}", &commit.id());
+        println!("&commit.id={}", &commit.id());
         //println!("commit.tree_id={}", &commit.tree_id());
         //println!("commit.tree={:?}", &commit.tree());
-        //println!("commit.raw={:?}", &commit.raw());
-        //println!("commit.message={:?}", &commit.message());
+        //println!("commit.raw={:?}", &commit.raw()); //pointer?
+
+        //println!("commit.message={:?}", &commit.message()); //commit diff body
+        let parts = commit.message().clone().unwrap().split("\n");
+        //let parts = commit.message().clone().unwrap().split("gpgsig");
+        for part in parts {
+            println!("commit.message part={}", part.replace("", ""))
+        };
+
         ////println!("commit.message_bytes{:?}", &commit.message_bytes());
         //println!("commit.message_encoding={:?}", &commit.message_encoding());
         //println!("commit.message_raw={:?}", &commit.message_raw());
-        ////println!("commit.messate_raw_bytes={:?}", &commit.message_raw_bytes());
-
+        ////println!("commit.message_raw_bytes={:?}", &commit.message_raw_bytes());
         //println!("commit.raw_header={:?}", commit.raw_header());
+
         let parts = commit.raw_header().clone().unwrap().split("\n");
         let parts = commit.raw_header().clone().unwrap().split("gpgsig");
-        for part in parts { println!("{}", part.replace("", ""))};
+        for part in parts {
+            println!("raw_header part={}", part.replace("", ""))
+        };
         ////println!("commit.header_field_bytes={:?}", &commit.header_field_bytes());
         ////println!("commit.raw_header_bytes={:?}", &commit.raw_header_bytes());
         //println!("commit.summary={:?}", &commit.summary());
