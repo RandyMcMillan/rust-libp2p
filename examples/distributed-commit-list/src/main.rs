@@ -443,7 +443,7 @@ fn run(args: &Args) -> Result<(), GitError> {
         ////println!("commit.messate_raw_bytes={:?}", &commit.message_raw_bytes());
         println!("commit.raw_header={:?}", commit.raw_header());
         let parts = commit.raw_header().clone().unwrap().split("\n");
-        for part in parts { println!("{}", part)};
+        for part in parts { println!("{}", part.replace("gpgsig", ""))};
         ////println!("commit.header_field_bytes={:?}", &commit.header_field_bytes());
         ////println!("commit.raw_header_bytes={:?}", &commit.raw_header_bytes());
         //println!("commit.summary={:?}", &commit.summary());
