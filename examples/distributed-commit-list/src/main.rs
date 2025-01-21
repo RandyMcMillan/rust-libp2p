@@ -448,13 +448,17 @@ fn run(args: &Args) -> Result<(), GitError> {
         //println!("commit.message_encoding={:?}", &commit.message_encoding());
         //println!("commit.message_raw={:?}", &commit.message_raw());
         ////println!("commit.message_raw_bytes={:?}", &commit.message_raw_bytes());
-        //println!("commit.raw_header={:?}", commit.raw_header());
 
-        let parts = commit.raw_header().clone().unwrap().split("\n");
-        let parts = commit.raw_header().clone().unwrap().split("gpgsig");
+        //raw_header
+        //println!("commit.raw_header={:?}", commit.raw_header());
+        let mut parts = commit.raw_header().clone().unwrap().split("\n");
         for part in parts {
             println!("raw_header part={}", part.replace("", ""))
         };
+        //parts = commit.raw_header().clone().unwrap().split("gpgsig");
+        //for part in parts {
+        //    println!("raw_header gpgsig part={}", part.replace("", ""))
+        //};
         ////println!("commit.header_field_bytes={:?}", &commit.header_field_bytes());
         ////println!("commit.raw_header_bytes={:?}", &commit.raw_header_bytes());
         //println!("commit.summary={:?}", &commit.summary());
