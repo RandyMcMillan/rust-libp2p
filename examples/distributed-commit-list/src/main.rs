@@ -431,7 +431,8 @@ fn run(args: &Args) -> Result<(), GitError> {
 
         //TODO construct nostr event
         println!("commit.id={}", &commit.id());
-        println!("nostr_privkey={}", format!("{:0>64}", &commit.id()));
+        let commit_privkey: String = String::from(format!("{:0>64}", &commit.id()));
+        println!("commit_privkey={}", &commit_privkey);
         //println!("commit.tree_id={}", &commit.tree_id());
         //println!("commit.tree={:?}", &commit.tree());
         //println!("commit.raw={:?}", &commit.raw());
