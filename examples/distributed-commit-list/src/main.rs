@@ -68,7 +68,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     //    Err(e) => println!("error: {}", e),
     //}
     //
-    let result = run(&args)?;
+    //access kademlia
+    //&mut swarm.behaviour_mut().kademlia;
+    let result = run(&args, &mut swarm.behaviour_mut().kademlia)?;
     println!("result={:?}", result);
     ////push commit hashes and commit diffs
 
@@ -315,7 +317,7 @@ fn match_with_parent(
     Ok(diff.deltas().len() > 0)
 }
 
-fn run(args: &Args) -> Result<(), GitError> {
+fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<(), GitError> {
     let path = args.flag_git_dir.as_ref().map(|s| &s[..]).unwrap_or(".");
     let repo = Repository::open(path)?;
     let mut revwalk = repo.revwalk()?;
@@ -435,7 +437,23 @@ fn run(args: &Args) -> Result<(), GitError> {
         println!("commit_privkey={}", commit_privkey);
 
         //commit.id
+        //we want to broadcast as provider for the actual commit.id()
         println!("&commit.id={}", &commit.id());
+
+
+        //match Some(&commit.id()) {
+            //let _ = Some(&commit.id()) =>
+            let commit_key = kad::RecordKey::new(&format!("{}", &commit.id()));
+            kademlia
+                .start_providing(commit_key)
+                .expect("Failed to start providing key");
+            //None => {
+            //    eprintln!("Expected commit.id()");
+            //    return;
+            //}
+        //}
+
+
         //println!("commit.tree_id={}", &commit.tree_id());
         //println!("commit.tree={:?}", &commit.tree());
         //println!("commit.raw={:?}", &commit.raw()); //pointer?
