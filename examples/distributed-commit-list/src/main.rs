@@ -441,11 +441,14 @@ fn run(args: &Args) -> Result<(), GitError> {
         //println!("commit.raw={:?}", &commit.raw()); //pointer?
 
         //println!("commit.message={:?}", &commit.message()); //commit diff body
-        let parts = commit.message().clone().unwrap().split("\n");
+        let mut part_index = 0;
+        let commit_parts = commit.message().clone().unwrap().split("\n");
         //let parts = commit.message().clone().unwrap().split("gpgsig");
-        for part in parts {
-            println!("commit.message part={}", part.replace("", ""))
+        for part in commit_parts {
+            println!("commit.message part={}:{}", part_index, part.replace("", ""));
+            part_index += 1;
         };
+        part_index = 0;
 
         ////println!("commit.message_bytes{:?}", &commit.message_bytes());
         //println!("commit.message_encoding={:?}", &commit.message_encoding());
@@ -454,9 +457,10 @@ fn run(args: &Args) -> Result<(), GitError> {
 
         //raw_header
         //println!("commit.raw_header={:?}", commit.raw_header());
-        let mut parts = commit.raw_header().clone().unwrap().split("\n");
-        for part in parts {
-            println!("raw_header part={}", part.replace("", ""))
+        let mut raw_header_parts = commit.raw_header().clone().unwrap().split("\n");
+        for part in raw_header_parts {
+            println!("raw_header part={}:{}", part_index, part.replace("", ""));
+            part_index += 1;
         };
         //parts = commit.raw_header().clone().unwrap().split("gpgsig");
         //for part in parts {
