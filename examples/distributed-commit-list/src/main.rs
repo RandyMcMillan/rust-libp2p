@@ -5,7 +5,6 @@ use clap::Parser;
 use git2::{Commit, DiffOptions, ObjectType, Repository, Signature, Time};
 use git2::{DiffFormat, Error as GitError, Pathspec};
 use std::str;
-//use time::Timespec;
 
 use futures::stream::StreamExt;
 use libp2p::{
@@ -119,34 +118,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
     match run(&args) {
         Ok(()) => {
 
-
-
-
-
-
         }
         Err(e) => println!("error: {}", e),
     }
     //
 
     ////push commit hashes and commit diffs
-
-
-    //Some("PUT_PROVIDER") => {
-    //    let key = {
-    //        match args.next() {
-    //            Some(key) => kad::RecordKey::new(&key),
-    //            None => {
-    //                eprintln!("Expected key");
-    //                return;
-    //            }
-    //        }
-    //    };
-
-    //    kademlia
-    //        .start_providing(key)
-    //        .expect("Failed to start providing key");
-    //}
 
 
 
@@ -161,7 +138,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     loop {
         select! {
         Ok(Some(line)) = stdin.next_line() => {
+
             handle_input_line(&mut swarm.behaviour_mut().kademlia, line);
+
         }
         event = swarm.select_next_some() => match event {
             SwarmEvent::NewListenAddr { address, .. } => {
@@ -333,7 +312,8 @@ fn log_message_matches(msg: Option<&str>, grep: &Option<String>) -> bool {
     }
 }
 
-fn print_commit(commit: &Commit) {
+//this formats and prints the commit header/message
+fn print_commit_header(commit: &Commit) {
     println!("commit {}", commit.id());
 
     if commit.parents().len() > 1 {
@@ -355,6 +335,8 @@ fn print_commit(commit: &Commit) {
     println!();
 }
 
+//called from above
+//part of formatting the output
 fn print_time(time: &Time, prefix: &str) {
     let (offset, sign) = match time.offset_minutes() {
         n if n < 0 => (-n, '-'),
@@ -500,7 +482,7 @@ fn run(args: &Args) -> Result<(), GitError> {
         let commit = commit?;
 
 
-        print_commit(&commit);
+        print_commit_header(&commit);
 
 
         if !args.flag_patch || commit.parents().len() > 1 {
@@ -508,6 +490,7 @@ fn run(args: &Args) -> Result<(), GitError> {
         }
 
         let a = if commit.parents().len() == 1 {
+            //we have arrived at the initial commit
             let parent = commit.parent(0)?;
             Some(parent.tree()?)
         } else {
@@ -516,6 +499,7 @@ fn run(args: &Args) -> Result<(), GitError> {
 
 
 
+        //print the diff content
         //push diff to commit_key
         let b = commit.tree()?;
         let diff = repo.diff_tree_to_tree(a.as_ref(), Some(&b), Some(&mut diffopts2))?;
@@ -524,7 +508,7 @@ fn run(args: &Args) -> Result<(), GitError> {
                 ' ' | '+' | '-' => print!("{}", line.origin()),
                 _ => {}
             }
-            print!("==================>{}", str::from_utf8(line.content()).unwrap());
+            print!("509:==================>{}", str::from_utf8(line.content()).unwrap());
             true
         })?;
     }
