@@ -430,8 +430,11 @@ fn run(args: &Args) -> Result<(), GitError> {
 
 
         //TODO construct nostr event
-        let commit_privkey: String = String::from(format!("{:0>64}", &commit.id()));
-        println!("commit_privkey={}", &commit_privkey);
+        //commit_privkey
+        let commit_privkey: String = String::from(format!("{:0>64}", &commit.id().clone()));
+        println!("commit_privkey={}", commit_privkey);
+
+        //commit.id
         println!("&commit.id={}", &commit.id());
         //println!("commit.tree_id={}", &commit.tree_id());
         //println!("commit.tree={:?}", &commit.tree());
