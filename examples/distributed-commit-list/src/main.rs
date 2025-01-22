@@ -19,12 +19,29 @@ use tokio::{
     select,
 };
 use tracing_subscriber::EnvFilter;
+//use tracing_subscriber::fmt;
+use tracing::Level;
+//use tracing_log::LogTracer;
+use tracing_log::log;
+fn init_subscriber(level: Level) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
+    tracing_subscriber::fmt()
+        // Setting a filter based on the value of the RUST_LOG environment variable
+        .with_env_filter(EnvFilter::from_default_env())
+        .with_max_level(level)
+        // Configure the subscriber to emit logs in JSON format.
+        .json()
+        // Configure the subscriber to flatten event fields in the output JSON objects.
+        .flatten_event(true)
+        // Set the subscriber as the default, returning an error if this fails.
+        .try_init()?;
+
+    Ok(())
+}
+
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let _ = tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
-        .try_init();
+    let _ = init_subscriber(Level::INFO);
 
     //TODO create key from arg
     let args = Args::parse();
@@ -109,7 +126,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         })
                     )) => {
                         println!(
-                            "Got record {:?} {:?}",
+                            "{{\"{:?}\":\"\"}} {:?}",
                             std::str::from_utf8(key.as_ref()).unwrap(),
                             std::str::from_utf8(&value).unwrap(),
                         );
@@ -309,10 +326,15 @@ fn match_with_parent(
 fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<(), GitError> {
     let path = args.flag_git_dir.as_ref().map(|s| &s[..]).unwrap_or(".");
     let repo = Repository::discover(path)?;
+
+
     let tag_names = &repo.tag_names(Some("")).expect("REASON");
     for tag in tag_names {
-        println!("{}", tag.unwrap());
+        //println!("println!={}", tag.unwrap());
+        log::info!("log::info={}", tag.unwrap());
     }
+
+
     let mut revwalk = repo.revwalk()?;
 
     // Prepare the revwalk based on CLI parameters
@@ -418,6 +440,36 @@ fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<(), Gi
         })
         .skip(args.flag_skip.unwrap_or(0))
         .take(args.flag_max_count.unwrap_or(!0));
+
+
+
+    let tag_names = &repo.tag_names(Some("")).expect("REASON");
+    println!("tag_names.len()={}", tag_names.len());
+    println!("tag_names.len()={}", tag_names.len());
+    println!("tag_names.len()={}", tag_names.len());
+    println!("tag_names.len()={}", tag_names.len());
+    for tag in tag_names {
+        log::trace!("{}", tag.unwrap());
+        let key = kad::RecordKey::new(&format!("{}", &tag.unwrap()));
+
+        ////push commit key and commit content as value
+        ////let value = Vec::from(commit.message_bytes().clone());
+        //let value = Vec::from(commit.message_bytes());
+        //let record = kad::Record {
+        //    key,
+        //    value,
+        //    publisher: None,
+        //    expires: None,
+        //};
+        //kademlia
+        //    .put_record(record, kad::Quorum::One)
+        //    .expect("Failed to store record locally.");
+        //let key = kad::RecordKey::new(&format!("{}", &commit.id()));
+        //kademlia
+        //    .start_providing(key)
+        //    .expect("Failed to start providing key");
+    }
+
 
     // print!
     for commit in revwalk {
