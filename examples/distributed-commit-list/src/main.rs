@@ -229,8 +229,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         })
                     )) => {
                         println!(
-                            //"{{\"{:?}\":\"\"}} {:?}",
-                            "{{{:?}:{:?}}}",
+                            "{{\"commit\":{:?},\"diff\":{:?}}}",
                             std::str::from_utf8(key.as_ref()).unwrap(),
                             std::str::from_utf8(&value).unwrap(),
                         );
