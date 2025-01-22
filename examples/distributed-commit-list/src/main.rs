@@ -243,6 +243,7 @@ fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
                 .start_providing(key)
                 .expect("Failed to start providing key");
         }
+        Some("QUIT") => { std::process::exit(0); }
         _ => {
             eprintln!("expected GET, GET_PROVIDERS, PUT or PUT_PROVIDER");
         }
