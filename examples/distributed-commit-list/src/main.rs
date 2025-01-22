@@ -157,7 +157,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     }
                     }
                     handle_input_line(&mut swarm.behaviour_mut().kademlia, line);
-                    //print!("161> ");
                 }
 
                 event = swarm.select_next_some() => match event {
@@ -230,7 +229,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         })
                     )) => {
                         println!(
-                            "{{\"{:?}\":\"\"}} {:?}",
+                            //"{{\"{:?}\":\"\"}} {:?}",
+                            "{{{:?}:{:?}}}",
                             std::str::from_utf8(key.as_ref()).unwrap(),
                             std::str::from_utf8(&value).unwrap(),
                         );
