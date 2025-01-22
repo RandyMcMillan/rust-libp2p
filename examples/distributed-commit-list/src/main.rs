@@ -18,20 +18,36 @@ use tokio::{
     io::{self, AsyncBufReadExt},
     select,
 };
-use tracing_subscriber::EnvFilter;
-//use tracing_subscriber::fmt;
 use tracing::Level;
+use tracing_subscriber::prelude::*;
+use tracing_subscriber::{fmt, EnvFilter};
 //use tracing_log::LogTracer;
 use tracing_log::log;
-fn init_subscriber(level: Level) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
+fn init_subscriber(_level: Level) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
+    let fmt_layer = fmt::layer().with_target(false);
+    let filter_layer = EnvFilter::try_from_default_env()
+        .or_else(|_| EnvFilter::try_new("info"))
+        .unwrap();
+
+    tracing_subscriber::registry()
+        .with(filter_layer)
+        .with(fmt_layer)
+        .init();
+
     tracing_subscriber::fmt()
         // Setting a filter based on the value of the RUST_LOG environment variable
+        // Examples:
+        //
+        // RUST_LOG="off,libp2p_mdns::behaviour=off"
+        // RUST_LOG="warn,libp2p_mdns::behaviour=off"
+        // RUST_LOG="debug,libp2p_mdns::behaviour=off"
+        //
         .with_env_filter(EnvFilter::from_default_env())
-        .with_max_level(level)
+        //.with_max_level(level)
         // Configure the subscriber to emit logs in JSON format.
         .json()
         // Configure the subscriber to flatten event fields in the output JSON objects.
-        .flatten_event(true)
+        //.flatten_event(true)
         // Set the subscriber as the default, returning an error if this fails.
         .try_init()?;
 
@@ -72,7 +88,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .with_behaviour(|key| {
             Ok(Behaviour {
                 identify: identify::Behaviour::new(identify::Config::new(
-                    "rendezvous-example/1.0.0".to_string(),
+                    //"rendezvous-example/1.0.0".to_string(),
+                    "gnostr/1.0.0".to_string(),
                     key.public(),
                 )),
                 rendezvous: rendezvous::server::Behaviour::new(
@@ -93,13 +110,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
         })?
         .build();
 
-    let _ = swarm.listen_on("/ip4/0.0.0.0/tcp/62649".parse().unwrap());
+    // TODO get weeble/blockheight/wobble
+    let listen_on = swarm.listen_on("/ip4/0.0.0.0/tcp/62649".parse().unwrap());
+    log::info!("listen_on={}", listen_on.unwrap());
     swarm.behaviour_mut().kademlia.set_mode(Some(Mode::Server));
     //net work is primed
 
     //run
     let result = run(&args, &mut swarm.behaviour_mut().kademlia)?;
-    println!("result={:?}", result);
+    log::trace!("result={:?}", result);
 
     //push commit hashes and commit diffs
 
@@ -107,37 +126,83 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut stdin = io::BufReader::new(io::stdin()).lines();
 
     // Listen on all interfaces and whatever port the OS assigns.
-    swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
+    // TODO get weeble/blockheight/wobble
+    let listen_on = swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
+    log::info!("listen_on={}", listen_on);
 
     // Kick it off.
     loop {
         select! {
-        Ok(Some(line)) = stdin.next_line() => {
+                Ok(Some(line)) = stdin.next_line() => {
 
-            handle_input_line(&mut swarm.behaviour_mut().kademlia, line);
+                    handle_input_line(&mut swarm.behaviour_mut().kademlia, line);
 
-        }
-        event = swarm.select_next_some() => match event {
-            SwarmEvent::NewListenAddr { address, .. } => {
-                println!("Listening in {address:?}");
-            },
-            SwarmEvent::Behaviour(BehaviourEvent::Mdns(mdns::Event::Discovered(list))) => {
-                for (peer_id, multiaddr) in list {
-                    swarm.behaviour_mut().kademlia.add_address(&peer_id, multiaddr);
                 }
-            }
-            SwarmEvent::Behaviour(BehaviourEvent::Kademlia(kad::Event::OutboundQueryProgressed { result, ..})) => {
+
+
+
+                event = swarm.select_next_some() => match event {
+
+
+                //match event
+
+                    SwarmEvent::ConnectionEstablished { peer_id, .. } => {
+                        tracing::info!("Connected to {}", peer_id);
+                    }
+                    SwarmEvent::ConnectionClosed { peer_id, .. } => {
+                        tracing::info!("Disconnected from {}", peer_id);
+                    }
+                    SwarmEvent::Behaviour(BehaviourEvent::Rendezvous(
+                        rendezvous::server::Event::PeerRegistered { peer, registration },
+                    )) => {
+                        tracing::info!(
+                            "Peer {} registered for namespace '{}'",
+                            peer,
+                            registration.namespace
+                        );
+                    }
+                    SwarmEvent::Behaviour(BehaviourEvent::Rendezvous(
+                        rendezvous::server::Event::DiscoverServed {
+                            enquirer,
+                            registrations,
+                        },
+                    )) => {
+                        tracing::info!(
+                            "Served peer {} with {} registrations",
+                            enquirer,
+                            registrations.len()
+                        );
+                    }
+                //    other => {
+                //        tracing::debug!("Unhandled {:?}", other);
+                //    }
+
+                SwarmEvent::NewListenAddr { address, .. } => {
+                    log::debug!("Listening in {address:?}");
+                }
+
+
+                SwarmEvent::Behaviour(BehaviourEvent::Mdns(mdns::Event::Discovered(list))) => {
+                    for (peer_id, multiaddr) in list {
+                        swarm.behaviour_mut().kademlia.add_address(&peer_id, multiaddr);
+                    }
+                }
+
+
+
+                SwarmEvent::Behaviour(BehaviourEvent::Kademlia(kad::Event::OutboundQueryProgressed { result, ..})) => {
                 match result {
                     kad::QueryResult::GetProviders(Ok(kad::GetProvidersOk::FoundProviders { key, providers, .. })) => {
                         for peer in providers {
-                            println!(
+                            log::info!(
                                 "Peer {peer:?} provides key {:?}",
                                 std::str::from_utf8(key.as_ref()).unwrap()
                             );
                         }
                     }
                     kad::QueryResult::GetProviders(Err(err)) => {
-                        eprintln!("Failed to get providers: {err:?}");
+                        //eprintln!("Failed to get providers: {err:?}");
+                        //log::trace!("Failed to get providers: {err:?}");
                     }
                     kad::QueryResult::GetRecord(Ok(
                         kad::GetRecordOk::FoundRecord(kad::PeerRecord {
@@ -145,7 +210,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                             ..
                         })
                     )) => {
-                        println!(
+                        log::info!(
                             "{{\"{:?}\":\"\"}} {:?}",
                             std::str::from_utf8(key.as_ref()).unwrap(),
                             std::str::from_utf8(&value).unwrap(),
@@ -153,30 +218,37 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     }
                     kad::QueryResult::GetRecord(Ok(_)) => {}
                     kad::QueryResult::GetRecord(Err(err)) => {
-                        eprintln!("Failed to get record: {err:?}");
+                        //eprintln!("Failed to get record: {err:?}");
+                        //log::trace!("Failed to get record: {err:?}");
                     }
                     kad::QueryResult::PutRecord(Ok(kad::PutRecordOk { key })) => {
-                        println!(
+                        log::info!(
                             "Successfully put record {:?}",
                             std::str::from_utf8(key.as_ref()).unwrap()
                         );
                     }
                     kad::QueryResult::PutRecord(Err(err)) => {
-                        eprintln!("Failed to put record: {err:?}");
+                        //eprintln!("Failed to put record: {err:?}");
+                        //log::trace!("Failed to put record: {err:?}");
                     }
                     kad::QueryResult::StartProviding(Ok(kad::AddProviderOk { key })) => {
-                        println!(
+                        log::info!(
                             "Successfully put provider record {:?}",
                             std::str::from_utf8(key.as_ref()).unwrap()
                         );
                     }
                     kad::QueryResult::StartProviding(Err(err)) => {
-                        eprintln!("Failed to put provider record: {err:?}");
+                        //eprintln!("Failed to put provider record: {err:?}");
+                        //log::trace!("Failed to put provider record: {err:?}");
                     }
                     _ => {}
                 }
             }
-            _ => {}
+                other => {
+
+                tracing::debug!("Unhandled {:?}", other);
+
+                }
         }
         }
     }
@@ -280,6 +352,12 @@ fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
         Some("QUIT") => {
             std::process::exit(0);
         }
+        Some("Q") => {
+            std::process::exit(0);
+        }
+        Some("EXIT") => {
+            std::process::exit(0);
+        }
         _ => {
             eprintln!("expected GET, GET_PROVIDERS, PUT or PUT_PROVIDER");
         }
@@ -367,7 +445,7 @@ fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<(), Gi
     let tag_names = &repo.tag_names(Some("")).expect("REASON");
     for tag in tag_names {
         //println!("println!={}", tag.unwrap());
-        log::info!("log::info={}", tag.unwrap());
+        log::debug!("log::info={}", tag.unwrap());
     }
 
     let mut revwalk = repo.revwalk()?;
