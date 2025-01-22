@@ -1,16 +1,16 @@
 #![doc = include_str!("../README.md")]
 
-use std::error::Error;
 use clap::Parser;
 use git2::{Commit, DiffOptions, ObjectType, Repository, Signature, Time};
 use git2::{DiffFormat, Error as GitError, Pathspec};
 use std::str;
+use std::{error::Error, time::Duration};
 
 use futures::stream::StreamExt;
 use libp2p::{
-    kad,
+    identify, kad,
     kad::{store::MemoryStore, Mode},
-    mdns, noise,
+    mdns, noise, ping, rendezvous,
     swarm::{NetworkBehaviour, SwarmEvent},
     tcp, yamux,
 };
@@ -38,7 +38,6 @@ fn init_subscriber(level: Level) -> Result<(), Box<dyn Error + Send + Sync + 'st
     Ok(())
 }
 
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let _ = init_subscriber(Level::INFO);
@@ -46,14 +45,24 @@ async fn main() -> Result<(), Box<dyn Error>> {
     //TODO create key from arg
     let args = Args::parse();
 
-    // We create a custom network behaviour that combines Kademlia and mDNS.
+    // Results in PeerID 12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN which is
+    // used as the rendezvous point by the other peer examples.
+    // TODO --key arg
+    let keypair = libp2p::identity::Keypair::ed25519_from_bytes([0; 32]).unwrap();
+
+    // We create a custom network behaviour that combines
+    // Kademlia and mDNS identify rendezvous ping
     #[derive(NetworkBehaviour)]
     struct Behaviour {
         kademlia: kad::Behaviour<MemoryStore>,
         mdns: mdns::tokio::Behaviour,
+        identify: identify::Behaviour,
+        rendezvous: rendezvous::server::Behaviour,
+        ping: ping::Behaviour,
     }
 
-    let mut swarm = libp2p::SwarmBuilder::with_new_identity()
+    // let mut swarm = libp2p::SwarmBuilder::with_new_identity()
+    let mut swarm = libp2p::SwarmBuilder::with_existing_identity(keypair)
         .with_tokio()
         .with_tcp(
             tcp::Config::default(),
@@ -62,6 +71,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
         )?
         .with_behaviour(|key| {
             Ok(Behaviour {
+                identify: identify::Behaviour::new(identify::Config::new(
+                    "rendezvous-example/1.0.0".to_string(),
+                    key.public(),
+                )),
+                rendezvous: rendezvous::server::Behaviour::new(
+                    rendezvous::server::Config::default(),
+                ),
+                ping: ping::Behaviour::new(
+                    ping::Config::new().with_interval(Duration::from_secs(1)),
+                ),
                 kademlia: kad::Behaviour::new(
                     key.public().to_peer_id(),
                     MemoryStore::new(key.public().to_peer_id()),
@@ -74,6 +93,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         })?
         .build();
 
+    let _ = swarm.listen_on("/ip4/0.0.0.0/tcp/62649".parse().unwrap());
     swarm.behaviour_mut().kademlia.set_mode(Some(Mode::Server));
     //net work is primed
 
@@ -243,7 +263,23 @@ fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
                 .start_providing(key)
                 .expect("Failed to start providing key");
         }
-        Some("QUIT") => { std::process::exit(0); }
+        Some("FETCH") => {
+            let key = {
+                match args.next() {
+                    Some(key) => kad::RecordKey::new(&key),
+                    None => {
+                        eprintln!("Expected key");
+                        return;
+                    }
+                }
+            };
+            kademlia.get_providers(key);
+
+            std::process::exit(0);
+        }
+        Some("QUIT") => {
+            std::process::exit(0);
+        }
         _ => {
             eprintln!("expected GET, GET_PROVIDERS, PUT or PUT_PROVIDER");
         }
@@ -328,13 +364,11 @@ fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<(), Gi
     let path = args.flag_git_dir.as_ref().map(|s| &s[..]).unwrap_or(".");
     let repo = Repository::discover(path)?;
 
-
     let tag_names = &repo.tag_names(Some("")).expect("REASON");
     for tag in tag_names {
         //println!("println!={}", tag.unwrap());
         log::info!("log::info={}", tag.unwrap());
     }
-
 
     let mut revwalk = repo.revwalk()?;
 
@@ -442,8 +476,6 @@ fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<(), Gi
         .skip(args.flag_skip.unwrap_or(0))
         .take(args.flag_max_count.unwrap_or(!0));
 
-
-
     let tag_names = &repo.tag_names(Some("")).expect("REASON");
     println!("tag_names.len()={}", tag_names.len());
     println!("tag_names.len()={}", tag_names.len());
@@ -471,11 +503,9 @@ fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<(), Gi
         //    .expect("Failed to start providing key");
     }
 
-
     // print!
     for commit in revwalk {
         let commit = commit?;
-
 
         //TODO construct nostr event
         //commit_privkey
@@ -486,27 +516,24 @@ fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<(), Gi
         //we want to broadcast as provider for the actual commit.id()
         println!("&commit.id={}", &commit.id());
 
+        let key = kad::RecordKey::new(&format!("{}", &commit.id()));
 
-            let key = kad::RecordKey::new(&format!("{}", &commit.id()));
-
-            //push commit key and commit content as value
-            //let value = Vec::from(commit.message_bytes().clone());
-            let value = Vec::from(commit.message_bytes());
-            let record = kad::Record {
-                key,
-                value,
-                publisher: None,
-                expires: None,
-            };
-            kademlia
-                .put_record(record, kad::Quorum::One)
-                .expect("Failed to store record locally.");
-            let key = kad::RecordKey::new(&format!("{}", &commit.id()));
-            kademlia
-                .start_providing(key)
-                .expect("Failed to start providing key");
-
-
+        //push commit key and commit content as value
+        //let value = Vec::from(commit.message_bytes().clone());
+        let value = Vec::from(commit.message_bytes());
+        let record = kad::Record {
+            key,
+            value,
+            publisher: None,
+            expires: None,
+        };
+        kademlia
+            .put_record(record, kad::Quorum::One)
+            .expect("Failed to store record locally.");
+        let key = kad::RecordKey::new(&format!("{}", &commit.id()));
+        kademlia
+            .start_providing(key)
+            .expect("Failed to start providing key");
 
         //println!("commit.tree_id={}", &commit.tree_id());
         //println!("commit.tree={:?}", &commit.tree());
@@ -517,9 +544,13 @@ fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<(), Gi
         let commit_parts = commit.message().clone().unwrap().split("\n");
         //let parts = commit.message().clone().unwrap().split("gpgsig");
         for part in commit_parts {
-            println!("commit.message part={}:{}", part_index, part.replace("", ""));
+            println!(
+                "commit.message part={}:{}",
+                part_index,
+                part.replace("", "")
+            );
             part_index += 1;
-        };
+        }
         part_index = 0;
 
         ////println!("commit.message_bytes{:?}", &commit.message_bytes());
@@ -533,7 +564,7 @@ fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<(), Gi
         for part in raw_header_parts {
             println!("raw_header part={}:{}", part_index, part.replace("", ""));
             part_index += 1;
-        };
+        }
         //parts = commit.raw_header().clone().unwrap().split("gpgsig");
         //for part in parts {
         //    println!("raw_header gpgsig part={}", part.replace("", ""))
@@ -548,7 +579,6 @@ fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<(), Gi
         //println!("commit.author={:?}", &commit.author().name());
         //print_commit_header(&commit);
 
-
         if !args.flag_patch || commit.parents().len() > 1 {
             continue;
         }
@@ -561,8 +591,6 @@ fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<(), Gi
             None
         };
 
-
-
         //print the diff content
         //push diff to commit_key
         let b = commit.tree()?;
@@ -572,14 +600,16 @@ fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<(), Gi
                 ' ' | '+' | '-' => print!("{}", line.origin()),
                 _ => {}
             }
-            print!("509:==================>{}", str::from_utf8(line.content()).unwrap());
+            print!(
+                "509:==================>{}",
+                str::from_utf8(line.content()).unwrap()
+            );
             true
         })?;
     }
 
     Ok(())
 }
-
 
 //TODO Server Mode or ??
 #[derive(Parser)]
