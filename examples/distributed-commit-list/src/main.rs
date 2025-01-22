@@ -58,6 +58,15 @@ fn init_subscriber(_level: Level) -> Result<(), Box<dyn Error + Send + Sync + 's
 async fn main() -> Result<(), Box<dyn Error>> {
     let _ = init_subscriber(Level::INFO);
 
+
+
+    let blockheight = reqwest::get("https://mempool.space/api/blocks/tip/height")
+    .await?
+    .text()
+    .await?;
+    log::info!("blockheight = {blockheight:?}");
+
+
     //TODO create key from arg
     let args = Args::parse();
 

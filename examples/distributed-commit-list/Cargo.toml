@@ -15,6 +15,7 @@ futures = { workspace = true }
 git2 = { version = "0.19.0" }
 libp2p = { path = "../../libp2p", features = [ "tokio", "dns", "kad", "mdns", "noise", "macros",
 "tcp", "yamux", "identify", "ping", "rendezvous"] }
+reqwest = "0.12.12"
 time = { version = "0.1.39" }
 tokio = { workspace = true, features = ["full"] }
 tracing = { workspace = true }
