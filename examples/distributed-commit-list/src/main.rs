@@ -56,11 +56,10 @@ fn init_subscriber(_level: Level) -> Result<(), Box<dyn Error + Send + Sync + 's
 
 async fn get_blockheight() -> Result<String, Box<dyn Error>> {
     let blockheight = reqwest::get("https://mempool.space/api/blocks/tip/height")
-    .await?
-    .text()
-    .await?;
+        .await?
+        .text()
+        .await?;
     Ok(blockheight)
-
 }
 
 #[tokio::main]
@@ -147,16 +146,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
     loop {
         select! {
                 Ok(Some(line)) = stdin.next_line() => {
-                    //handle_input_line(&mut swarm.behaviour_mut().kademlia, line.clone());
-                    //println!("swarm.network_info()={:?}", swarm.network_info());
-                    println!("270swarm.local_peer_id()={:?}", swarm.local_peer_id());
+                    log::trace!("line.len()={}", line.len());
+                    if line.len() <= 3 {
+                    println!("{:?}", swarm.local_peer_id());
                     for address in swarm.external_addresses() {
-                        println!("154swarm.external_addresses()={:?}", address);
+                        println!("{:?}", address);
                     }
                     for peer in swarm.connected_peers() {
-                        println!("154swarm.connected_peers()={:?}", peer);
+                        println!("{:?}", peer);
+                    }
                     }
                     handle_input_line(&mut swarm.behaviour_mut().kademlia, line);
+                    //print!("161> ");
                 }
 
                 event = swarm.select_next_some() => match event {
@@ -289,6 +290,7 @@ fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
                     Some(key) => kad::RecordKey::new(&key),
                     None => {
                         eprintln!("Expected key");
+                        eprint!("194> ");
                         return;
                     }
                 }
@@ -301,6 +303,7 @@ fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
                     Some(key) => kad::RecordKey::new(&key),
                     None => {
                         eprintln!("Expected key");
+                        eprint!("307> ");
                         return;
                     }
                 }
@@ -313,6 +316,7 @@ fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
                     Some(key) => kad::RecordKey::new(&key),
                     None => {
                         eprintln!("Expected key");
+                        eprint!("320> ");
                         return;
                     }
                 }
@@ -322,6 +326,7 @@ fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
                     Some(value) => value.as_bytes().to_vec(),
                     None => {
                         eprintln!("Expected value");
+                        eprint!("330> ");
                         return;
                     }
                 }
@@ -342,6 +347,7 @@ fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
                     Some(key) => kad::RecordKey::new(&key),
                     None => {
                         eprintln!("Expected key");
+                        eprint!("351> ");
                         return;
                     }
                 }
@@ -357,6 +363,7 @@ fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
                     Some(key) => kad::RecordKey::new(&key),
                     None => {
                         eprintln!("Expected key");
+                        eprint!("367> ");
                         return;
                     }
                 }
@@ -376,7 +383,7 @@ fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
         }
         _ => {
             eprintln!("expected GET, GET_PROVIDERS, PUT or PUT_PROVIDER");
-            eprint!("> ");
+            eprint!("387> ");
         }
     }
 }
