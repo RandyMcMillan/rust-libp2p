@@ -60,22 +60,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     swarm.behaviour_mut().kademlia.set_mode(Some(Mode::Server));
     //net work is primed
 
-    ////
-    //match run(&args) {
-    //    Ok(()) => {
-
-    //    }
-    //    Err(e) => println!("error: {}", e),
-    //}
-    //
-    //access kademlia
-    //&mut swarm.behaviour_mut().kademlia;
+    //run
     let result = run(&args, &mut swarm.behaviour_mut().kademlia)?;
     println!("result={:?}", result);
-    ////push commit hashes and commit diffs
 
-
-
+    //push commit hashes and commit diffs
 
     // Read full lines from stdin
     let mut stdin = io::BufReader::new(io::stdin()).lines();
@@ -262,7 +251,7 @@ fn log_message_matches(msg: Option<&str>, grep: &Option<String>) -> bool {
 }
 
 //this formats and prints the commit header/message
-fn print_commit_header(commit: &Commit) {
+fn _print_commit_header(commit: &Commit) {
     println!("commit {}", commit.id());
 
     if commit.parents().len() > 1 {
@@ -275,7 +264,7 @@ fn print_commit_header(commit: &Commit) {
 
     let author = commit.author();
     println!("Author: {}", author);
-    print_time(&author.when(), "Date:   ");
+    _print_time(&author.when(), "Date:   ");
     println!();
 
     for line in String::from_utf8_lossy(commit.message_bytes()).lines() {
@@ -286,7 +275,7 @@ fn print_commit_header(commit: &Commit) {
 
 //called from above
 //part of formatting the output
-fn print_time(time: &Time, prefix: &str) {
+fn _print_time(time: &Time, prefix: &str) {
     let (offset, sign) = match time.offset_minutes() {
         n if n < 0 => (-n, '-'),
         n => (n, '+'),
@@ -319,7 +308,11 @@ fn match_with_parent(
 
 fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<(), GitError> {
     let path = args.flag_git_dir.as_ref().map(|s| &s[..]).unwrap_or(".");
-    let repo = Repository::open(path)?;
+    let repo = Repository::discover(path)?;
+    let tag_names = &repo.tag_names(Some("")).expect("REASON");
+    for tag in tag_names {
+        println!("{}", tag.unwrap());
+    }
     let mut revwalk = repo.revwalk()?;
 
     // Prepare the revwalk based on CLI parameters
