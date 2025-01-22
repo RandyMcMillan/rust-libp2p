@@ -26,7 +26,7 @@ use tracing_log::log;
 fn init_subscriber(_level: Level) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
     let fmt_layer = fmt::layer().with_target(false);
     let filter_layer = EnvFilter::try_from_default_env()
-        .or_else(|_| EnvFilter::try_new("info"))
+        .or_else(|_| EnvFilter::try_new("info")) //default
         .unwrap();
 
     tracing_subscriber::registry()
@@ -54,18 +54,21 @@ fn init_subscriber(_level: Level) -> Result<(), Box<dyn Error + Send + Sync + 's
     Ok(())
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
-    let _ = init_subscriber(Level::INFO);
-
-
-
+async fn get_blockheight() -> Result<String, Box<dyn Error>> {
     let blockheight = reqwest::get("https://mempool.space/api/blocks/tip/height")
     .await?
     .text()
     .await?;
-    log::info!("blockheight = {blockheight:?}");
+    Ok(blockheight)
 
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+    let _ = init_subscriber(Level::INFO);
+
+    let blockheight = get_blockheight().await.unwrap();
+    log::info!("blockheight = {blockheight:?}");
 
     //TODO create key from arg
     let args = Args::parse();
@@ -121,8 +124,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // TODO get weeble/blockheight/wobble
     let listen_on = swarm.listen_on("/ip4/0.0.0.0/tcp/62649".parse().unwrap());
-    log::info!("listen_on={}", listen_on.unwrap());
+    log::debug!("listen_on={}", listen_on.unwrap());
     swarm.behaviour_mut().kademlia.set_mode(Some(Mode::Server));
+    log::info!("swarm.local_peer_id()={:?}", swarm.local_peer_id());
     //net work is primed
 
     //run
@@ -137,18 +141,23 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Listen on all interfaces and whatever port the OS assigns.
     // TODO get weeble/blockheight/wobble
     let listen_on = swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
-    log::info!("listen_on={}", listen_on);
+    log::debug!("listen_on={}", listen_on);
 
     // Kick it off.
     loop {
         select! {
                 Ok(Some(line)) = stdin.next_line() => {
-
+                    //handle_input_line(&mut swarm.behaviour_mut().kademlia, line.clone());
+                    //println!("swarm.network_info()={:?}", swarm.network_info());
+                    println!("270swarm.local_peer_id()={:?}", swarm.local_peer_id());
+                    for address in swarm.external_addresses() {
+                        println!("154swarm.external_addresses()={:?}", address);
+                    }
+                    for peer in swarm.connected_peers() {
+                        println!("154swarm.connected_peers()={:?}", peer);
+                    }
                     handle_input_line(&mut swarm.behaviour_mut().kademlia, line);
-
                 }
-
-
 
                 event = swarm.select_next_some() => match event {
 
@@ -211,7 +220,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     }
                     kad::QueryResult::GetProviders(Err(err)) => {
                         //eprintln!("Failed to get providers: {err:?}");
-                        //log::trace!("Failed to get providers: {err:?}");
+                        log::trace!("Failed to get providers: {err:?}");
                     }
                     kad::QueryResult::GetRecord(Ok(
                         kad::GetRecordOk::FoundRecord(kad::PeerRecord {
@@ -219,7 +228,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                             ..
                         })
                     )) => {
-                        log::info!(
+                        println!(
                             "{{\"{:?}\":\"\"}} {:?}",
                             std::str::from_utf8(key.as_ref()).unwrap(),
                             std::str::from_utf8(&value).unwrap(),
@@ -228,37 +237,35 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     kad::QueryResult::GetRecord(Ok(_)) => {}
                     kad::QueryResult::GetRecord(Err(err)) => {
                         //eprintln!("Failed to get record: {err:?}");
-                        //log::trace!("Failed to get record: {err:?}");
+                        log::info!("Failed to get record: {err:?}");
                     }
                     kad::QueryResult::PutRecord(Ok(kad::PutRecordOk { key })) => {
                         log::info!(
-                            "Successfully put record {:?}",
+                            "PUT {:?}",
                             std::str::from_utf8(key.as_ref()).unwrap()
                         );
                     }
                     kad::QueryResult::PutRecord(Err(err)) => {
                         //eprintln!("Failed to put record: {err:?}");
-                        //log::trace!("Failed to put record: {err:?}");
+                        log::info!("Failed to put record: {err:?}");
                     }
                     kad::QueryResult::StartProviding(Ok(kad::AddProviderOk { key })) => {
                         log::info!(
-                            "Successfully put provider record {:?}",
+                            "PUT_PROVIDER {:?}",
                             std::str::from_utf8(key.as_ref()).unwrap()
                         );
                     }
                     kad::QueryResult::StartProviding(Err(err)) => {
                         //eprintln!("Failed to put provider record: {err:?}");
-                        //log::trace!("Failed to put provider record: {err:?}");
+                        log::trace!("Failed to put provider record: {err:?}");
                     }
                     _ => {}
                 }
             }
-                other => {
-
+            other => {
                 tracing::debug!("Unhandled {:?}", other);
-
+            }
                 }
-        }
         }
     }
 }
@@ -356,7 +363,7 @@ fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
             };
             kademlia.get_providers(key);
 
-            std::process::exit(0);
+            //std::process::exit(0);
         }
         Some("QUIT") => {
             std::process::exit(0);
@@ -369,6 +376,7 @@ fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
         }
         _ => {
             eprintln!("expected GET, GET_PROVIDERS, PUT or PUT_PROVIDER");
+            eprint!("> ");
         }
     }
 }
@@ -454,7 +462,7 @@ fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<(), Gi
     let tag_names = &repo.tag_names(Some("")).expect("REASON");
     for tag in tag_names {
         //println!("println!={}", tag.unwrap());
-        log::debug!("log::info={}", tag.unwrap());
+        log::debug!("tag.unwrap()={}", tag.unwrap());
     }
 
     let mut revwalk = repo.revwalk()?;
@@ -564,10 +572,7 @@ fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<(), Gi
         .take(args.flag_max_count.unwrap_or(!0));
 
     let tag_names = &repo.tag_names(Some("")).expect("REASON");
-    println!("tag_names.len()={}", tag_names.len());
-    println!("tag_names.len()={}", tag_names.len());
-    println!("tag_names.len()={}", tag_names.len());
-    println!("tag_names.len()={}", tag_names.len());
+    log::debug!("tag_names.len()={}", tag_names.len());
     for tag in tag_names {
         log::trace!("{}", tag.unwrap());
         let key = kad::RecordKey::new(&format!("{}", &tag.unwrap()));
@@ -597,11 +602,11 @@ fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<(), Gi
         //TODO construct nostr event
         //commit_privkey
         let commit_privkey: String = String::from(format!("{:0>64}", &commit.id().clone()));
-        println!("commit_privkey={}", commit_privkey);
+        log::trace!("commit_privkey={}", commit_privkey);
 
         //commit.id
         //we want to broadcast as provider for the actual commit.id()
-        println!("&commit.id={}", &commit.id());
+        log::debug!("&commit.id={}", &commit.id());
 
         let key = kad::RecordKey::new(&format!("{}", &commit.id()));
 
@@ -631,7 +636,7 @@ fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<(), Gi
         let commit_parts = commit.message().clone().unwrap().split("\n");
         //let parts = commit.message().clone().unwrap().split("gpgsig");
         for part in commit_parts {
-            println!(
+            log::debug!(
                 "commit.message part={}:{}",
                 part_index,
                 part.replace("", "")
@@ -649,7 +654,7 @@ fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<(), Gi
         //println!("commit.raw_header={:?}", commit.raw_header());
         let raw_header_parts = commit.raw_header().clone().unwrap().split("\n");
         for part in raw_header_parts {
-            println!("raw_header part={}:{}", part_index, part.replace("", ""));
+            log::debug!("raw_header part={}:{}", part_index, part.replace("", ""));
             part_index += 1;
         }
         //parts = commit.raw_header().clone().unwrap().split("gpgsig");
