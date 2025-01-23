@@ -14,6 +14,7 @@ use libp2p::{
     swarm::{NetworkBehaviour, SwarmEvent},
     tcp, yamux,
 };
+use libp2p::StreamProtocol;
 use tokio::{
     io::{self, AsyncBufReadExt},
     select,
@@ -62,6 +63,14 @@ async fn get_blockheight() -> Result<String, Box<dyn Error>> {
     Ok(blockheight)
 }
 
+const BOOTNODES: [&str; 4] = [
+    "QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+    "QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa",
+    "QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
+    "QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt",
+];
+const IPFS_PROTO_NAME: StreamProtocol = StreamProtocol::new("/ipfs/kad/1.0.0");
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let _ = init_subscriber(Level::INFO);
@@ -81,6 +90,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Kademlia and mDNS identify rendezvous ping
     #[derive(NetworkBehaviour)]
     struct Behaviour {
+        ipfs: kad::Behaviour<MemoryStore>,
         kademlia: kad::Behaviour<MemoryStore>,
         mdns: mdns::tokio::Behaviour,
         identify: identify::Behaviour,
@@ -96,10 +106,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
             noise::Config::new,
             yamux::Config::default,
         )?
+        .with_dns()?
         .with_behaviour(|key| {
+            let mut ipfs_cfg = kad::Config::new(IPFS_PROTO_NAME);
+            ipfs_cfg.set_query_timeout(Duration::from_secs(5 * 60));
+            let ipfs_store = kad::store::MemoryStore::new(key.public().to_peer_id());
             Ok(Behaviour {
+                ipfs: kad::Behaviour::with_config(key.public().to_peer_id(),
+                ipfs_store,
+                ipfs_cfg
+                )
+                //.add_address(&BOOTNODES[0].parse()?, "/dnsaddr/bootstrap.libp2p.io".parse()?)
+                ,
                 identify: identify::Behaviour::new(identify::Config::new(
-                    //"rendezvous-example/1.0.0".to_string(),
                     "gnostr/1.0.0".to_string(),
                     key.public(),
                 )),
@@ -120,6 +139,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
             })
         })?
         .build();
+
+    // Add the bootnodes to the local routing table. `libp2p-dns` built
+    // into the `transport` resolves the `dnsaddr` when Kademlia tries
+    // to dial these nodes.
+    for peer in &BOOTNODES {
+        //swarm.behaviour_mut().kademlia.set_mode(Some(Mode::Server));
+        swarm
+            .behaviour_mut().
+            ipfs
+            .add_address(&peer.parse()?, "/dnsaddr/bootstrap.libp2p.io".parse()?);
+    }
+
 
     // TODO get weeble/blockheight/wobble
     let listen_on = swarm.listen_on("/ip4/0.0.0.0/tcp/62649".parse().unwrap());
