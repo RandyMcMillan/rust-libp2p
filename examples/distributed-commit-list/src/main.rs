@@ -7,6 +7,7 @@ use std::str;
 use std::{error::Error, time::Duration};
 
 use futures::stream::StreamExt;
+use libp2p::StreamProtocol;
 use libp2p::{
     identify, kad,
     kad::{store::MemoryStore, Mode},
@@ -14,7 +15,6 @@ use libp2p::{
     swarm::{NetworkBehaviour, SwarmEvent},
     tcp, yamux,
 };
-use libp2p::StreamProtocol;
 use tokio::{
     io::{self, AsyncBufReadExt},
     select,
@@ -112,12 +112,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             ipfs_cfg.set_query_timeout(Duration::from_secs(5 * 60));
             let ipfs_store = kad::store::MemoryStore::new(key.public().to_peer_id());
             Ok(Behaviour {
-                ipfs: kad::Behaviour::with_config(key.public().to_peer_id(),
-                ipfs_store,
-                ipfs_cfg
-                )
-                //.add_address(&BOOTNODES[0].parse()?, "/dnsaddr/bootstrap.libp2p.io".parse()?)
-                ,
+                ipfs: kad::Behaviour::with_config(key.public().to_peer_id(), ipfs_store, ipfs_cfg),
                 identify: identify::Behaviour::new(identify::Config::new(
                     "gnostr/1.0.0".to_string(),
                     key.public(),
@@ -146,11 +141,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
     for peer in &BOOTNODES {
         //swarm.behaviour_mut().kademlia.set_mode(Some(Mode::Server));
         swarm
-            .behaviour_mut().
-            ipfs
+            .behaviour_mut()
+            .ipfs
+            .add_address(&peer.parse()?, "/dnsaddr/bootstrap.libp2p.io".parse()?);
+        swarm
+            .behaviour_mut()
+            .kademlia
             .add_address(&peer.parse()?, "/dnsaddr/bootstrap.libp2p.io".parse()?);
     }
-
 
     // TODO get weeble/blockheight/wobble
     let listen_on = swarm.listen_on("/ip4/0.0.0.0/tcp/62649".parse().unwrap());
@@ -187,7 +185,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         println!("{:?}", peer);
                     }
                     }
-                    handle_input_line(&mut swarm.behaviour_mut().kademlia, line);
+                    handle_input_line(&mut swarm.behaviour_mut().kademlia, line).await;
                 }
 
                 event = swarm.select_next_some() => match event {
@@ -310,7 +308,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 //        .start_providing(key)
 //        .expect("Failed to start providing key");
 //}
-fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
+async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
     let mut args = line.split(' ');
 
     match args.next() {
@@ -413,7 +411,7 @@ fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
         }
         _ => {
             eprintln!("expected GET, GET_PROVIDERS, PUT or PUT_PROVIDER");
-            eprint!("387> ");
+            eprint!("{}/gnostr> ", get_blockheight().await.expect("REASON"));
         }
     }
 }
