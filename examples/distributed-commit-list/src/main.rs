@@ -1,9 +1,13 @@
 #![doc = include_str!("../README.md")]
-
 use clap::Parser;
 use git2::{Commit, DiffOptions, ObjectType, Repository, Signature, Time};
 use git2::{DiffFormat, Error as GitError, Pathspec};
+use reachable::IcmpTarget;
+use reachable::Status;
+use reachable::Target;
 use std::str;
+use std::str::FromStr;
+use std::time::{SystemTime, UNIX_EPOCH};
 use std::{error::Error, time::Duration};
 
 use futures::stream::StreamExt;
@@ -15,6 +19,11 @@ use libp2p::{
     swarm::{NetworkBehaviour, SwarmEvent},
     tcp, yamux,
 };
+use reachable::AsyncTarget;
+use reachable::AsyncTargetExecutor;
+use reachable::CheckTargetError;
+use reachable::OldStatus;
+use tokio::time::sleep;
 use tokio::{
     io::{self, AsyncBufReadExt},
     select,
@@ -56,21 +65,71 @@ fn init_subscriber(_level: Level) -> Result<(), Box<dyn Error + Send + Sync + 's
 }
 
 async fn get_blockheight() -> Result<String, Box<dyn Error>> {
-    let client = reqwest::Client::builder()
-        .build()
-        .expect("should be able to build reqwest client");
-    let blockheight = client
-        .get("https://mempool.space/api/blocks/tip/height")
-        .send()
-        .await?;
-    log::debug!("mempool.space status: {}", blockheight.status());
-    if blockheight.status() != reqwest::StatusCode::OK {
-        log::debug!("didn't get OK status: {}", blockheight.status());
-        Ok(String::from(">>>>>"))
-    } else {
-        let blockheight = blockheight.text().await?;
-        log::debug!("{}", blockheight);
-        Ok(blockheight)
+    // // Setup AsyncTarget
+    // // mempool.space ips
+    // let mempool_space: String = String::from("95.173.221.215");
+    // // 103.165.192.210
+    // // 103.165.192.211
+    // // 103.165.192.212
+    // // 103.165.192.207
+    // // 103.165.192.208
+    // // 103.165.192.209
+    // let target = IcmpTarget::from_str(&mempool_space).unwrap();
+    // let check_handler = |_: &dyn Target, _: Status, _: OldStatus, _: Option<CheckTargetError>| {
+    // // Handle check results
+    // };
+    // //print!("{:?}", check_handler);
+    // let check_interval = Duration::from_secs(20);
+    // let async_target = AsyncTarget::from((target, check_handler, check_interval));
+
+    // // Setup AsyncTargetExecutor and let it run for 1s
+    // let mut exec = AsyncTargetExecutor::new();
+    // exec.start(vec![async_target]);
+    // let _ = sleep(Duration::from_secs(10));
+    // exec.stop();
+
+    let now = SystemTime::now();
+    match now.duration_since(UNIX_EPOCH) {
+        Ok(duration) => {
+            let seconds = duration.as_secs();
+            if seconds % 2 == 0 {
+            log::debug!("time/seconds/even/{}", seconds);
+                let url = "https://mempool.space/api/blocks/tip/height";
+                let client = reqwest::Client::builder()
+                    .build()
+                    .expect("should be able to build reqwest client");
+                let blockheight = client.get(url).send().await?;
+                log::debug!("mempool.space status: {}", blockheight.status());
+                if blockheight.status() != reqwest::StatusCode::OK {
+                    log::debug!("didn't get OK status: {}", blockheight.status());
+                    Ok(String::from(">>>>>"))
+                } else {
+                    let blockheight = blockheight.text().await?;
+                    log::debug!("{}", blockheight);
+                    Ok(blockheight)
+                }
+            } else {
+                log::debug!("time/seconds/odd/{}", seconds);
+                let url = "https://bitcoin.gob.sv/api/blocks/tip/height";
+                let client = reqwest::Client::builder()
+                    .build()
+                    .expect("should be able to build reqwest client");
+                let blockheight = client.get(url).send().await?;
+                log::debug!("mempool.space status: {}", blockheight.status());
+                if blockheight.status() != reqwest::StatusCode::OK {
+                    log::debug!("didn't get OK status: {}", blockheight.status());
+                    Ok(String::from(">>>>>"))
+                } else {
+                    let blockheight = blockheight.text().await?;
+                    log::debug!("{}", blockheight);
+                    Ok(blockheight)
+                }
+            }
+        }
+        Err(error) => {
+            log::debug!("Error getting time: {}", error);
+            Ok(String::from(">>>>>"))
+        }
     }
 }
 
@@ -86,8 +145,8 @@ const IPFS_PROTO_NAME: StreamProtocol = StreamProtocol::new("/ipfs/kad/1.0.0");
 async fn main() -> Result<(), Box<dyn Error>> {
     let _ = init_subscriber(Level::INFO);
 
-    let blockheight = get_blockheight().await.unwrap();
-    log::info!("blockheight = {blockheight:?}");
+    //let blockheight = get_blockheight().await.unwrap();
+    //log::info!("blockheight = {blockheight:?}");
 
     //TODO create key from arg
     let args = Args::parse();
@@ -161,10 +220,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     // TODO get weeble/blockheight/wobble
-    let listen_on = swarm.listen_on("/ip4/0.0.0.0/tcp/62649".parse().unwrap());
+    let listen_on = swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse().unwrap());
     log::debug!("listen_on={}", listen_on.unwrap());
     swarm.behaviour_mut().kademlia.set_mode(Some(Mode::Server));
-    log::info!("swarm.local_peer_id()={:?}", swarm.local_peer_id());
+    log::debug!("swarm.local_peer_id()={:?}", swarm.local_peer_id());
     //net work is primed
 
     //run
@@ -178,8 +237,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Listen on all interfaces and whatever port the OS assigns.
     // TODO get weeble/blockheight/wobble
-    let listen_on = swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
-    log::debug!("listen_on={}", listen_on);
+    //let listen_on = swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
+    //log::debug!("listen_on={}", listen_on);
 
     // Kick it off.
     loop {
@@ -187,12 +246,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 Ok(Some(line)) = stdin.next_line() => {
                     log::trace!("line.len()={}", line.len());
                     if line.len() <= 3 {
-                    println!("{:?}", swarm.local_peer_id());
+                    log::debug!("{:?}", swarm.local_peer_id());
                     for address in swarm.external_addresses() {
-                        println!("{:?}", address);
+                        log::debug!("{:?}", address);
                     }
                     for peer in swarm.connected_peers() {
-                        println!("{:?}", peer);
+                        log::debug!("{:?}", peer);
                     }
                     }
                     handle_input_line(&mut swarm.behaviour_mut().kademlia, line).await;
@@ -204,10 +263,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 //match event
 
                     SwarmEvent::ConnectionEstablished { peer_id, .. } => {
-                        tracing::info!("Connected to {}", peer_id);
+                        tracing::debug!("Connected to {}", peer_id);
                     }
                     SwarmEvent::ConnectionClosed { peer_id, .. } => {
-                        tracing::info!("Disconnected from {}", peer_id);
+                        tracing::debug!("Disconnected from {}", peer_id);
                     }
                     SwarmEvent::Behaviour(BehaviourEvent::Rendezvous(
                         rendezvous::server::Event::PeerRegistered { peer, registration },
@@ -321,6 +380,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
     let mut args = line.split(' ');
 
+    let blockheight = get_blockheight().await.expect("REASON");
     match args.next() {
         Some("GET") => {
             let key = {
@@ -328,7 +388,7 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: Str
                     Some(key) => kad::RecordKey::new(&key),
                     None => {
                         eprintln!("Expected key");
-                        eprint!("{}/gnostr> ", get_blockheight().await.expect("REASON"));
+                        eprint!("{}/gnostr> ", blockheight);
                         return;
                     }
                 }
@@ -341,7 +401,7 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: Str
                     Some(key) => kad::RecordKey::new(&key),
                     None => {
                         eprintln!("Expected key");
-                        eprint!("{}/gnostr> ", get_blockheight().await.expect("REASON"));
+                        eprint!("{}/gnostr> ", blockheight);
                         return;
                     }
                 }
@@ -354,7 +414,7 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: Str
                     Some(key) => kad::RecordKey::new(&key),
                     None => {
                         eprintln!("Expected key");
-                        eprint!("{}/gnostr> ", get_blockheight().await.expect("REASON"));
+                        eprint!("{}/gnostr> ", blockheight);
                         return;
                     }
                 }
@@ -364,7 +424,7 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: Str
                     Some(value) => value.as_bytes().to_vec(),
                     None => {
                         eprintln!("Expected value");
-                        eprint!("{}/gnostr> ", get_blockheight().await.expect("REASON"));
+                        eprint!("{}/gnostr> ", blockheight);
                         return;
                     }
                 }
@@ -385,7 +445,7 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: Str
                     Some(key) => kad::RecordKey::new(&key),
                     None => {
                         eprintln!("Expected key");
-                        eprint!("{}/gnostr> ", get_blockheight().await.expect("REASON"));
+                        eprint!("{}/gnostr> ", blockheight);
                         return;
                     }
                 }
@@ -401,7 +461,7 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: Str
                     Some(key) => kad::RecordKey::new(&key),
                     None => {
                         eprintln!("Expected key");
-                        eprint!("{}/gnostr> ", get_blockheight().await.expect("REASON"));
+                        eprint!("{}/gnostr> ", blockheight);
                         return;
                     }
                 }
@@ -421,7 +481,7 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: Str
         }
         _ => {
             eprintln!("expected GET, GET_PROVIDERS, PUT or PUT_PROVIDER");
-            eprint!("{}/gnostr> ", get_blockheight().await.expect("REASON"));
+            eprint!("{}/gnostr> ", blockheight);
         }
     }
 }
