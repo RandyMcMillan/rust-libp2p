@@ -76,6 +76,9 @@ dcutr-example:
 distributed-key-value-store-example:
     cargo run --bin   distributed-key-value-store-example
 
+distributed-commit-list:
+    cargo run --bin   distributed-commit-list
+
 file-sharing-example:
     cargo run --bin   file-sharing-example
 
