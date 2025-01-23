@@ -318,7 +318,7 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: Str
                     Some(key) => kad::RecordKey::new(&key),
                     None => {
                         eprintln!("Expected key");
-                        eprint!("194> ");
+                        eprint!("{}/gnostr> ", get_blockheight().await.expect("REASON"));
                         return;
                     }
                 }
@@ -331,7 +331,7 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: Str
                     Some(key) => kad::RecordKey::new(&key),
                     None => {
                         eprintln!("Expected key");
-                        eprint!("307> ");
+                        eprint!("{}/gnostr> ", get_blockheight().await.expect("REASON"));
                         return;
                     }
                 }
@@ -344,7 +344,7 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: Str
                     Some(key) => kad::RecordKey::new(&key),
                     None => {
                         eprintln!("Expected key");
-                        eprint!("320> ");
+                        eprint!("{}/gnostr> ", get_blockheight().await.expect("REASON"));
                         return;
                     }
                 }
@@ -354,7 +354,7 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: Str
                     Some(value) => value.as_bytes().to_vec(),
                     None => {
                         eprintln!("Expected value");
-                        eprint!("330> ");
+                        eprint!("{}/gnostr> ", get_blockheight().await.expect("REASON"));
                         return;
                     }
                 }
@@ -375,7 +375,7 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: Str
                     Some(key) => kad::RecordKey::new(&key),
                     None => {
                         eprintln!("Expected key");
-                        eprint!("351> ");
+                        eprint!("{}/gnostr> ", get_blockheight().await.expect("REASON"));
                         return;
                     }
                 }
@@ -391,7 +391,7 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: Str
                     Some(key) => kad::RecordKey::new(&key),
                     None => {
                         eprintln!("Expected key");
-                        eprint!("367> ");
+                        eprint!("{}/gnostr> ", get_blockheight().await.expect("REASON"));
                         return;
                     }
                 }
