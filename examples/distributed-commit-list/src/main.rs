@@ -56,11 +56,22 @@ fn init_subscriber(_level: Level) -> Result<(), Box<dyn Error + Send + Sync + 's
 }
 
 async fn get_blockheight() -> Result<String, Box<dyn Error>> {
-    let blockheight = reqwest::get("https://mempool.space/api/blocks/tip/height")
-        .await?
-        .text()
+    let client = reqwest::Client::builder()
+        .build()
+        .expect("should be able to build reqwest client");
+    let blockheight = client
+        .get("https://mempool.space/api/blocks/tip/height")
+        .send()
         .await?;
-    Ok(blockheight)
+    log::debug!("mempool.space status: {}", blockheight.status());
+    if blockheight.status() != reqwest::StatusCode::OK {
+        log::debug!("didn't get OK status: {}", blockheight.status());
+        Ok(String::from(">>>>>"))
+    } else {
+        let blockheight = blockheight.text().await?;
+        log::debug!("{}", blockheight);
+        Ok(blockheight)
+    }
 }
 
 const IPFS_BOOTNODES: [&str; 4] = [
