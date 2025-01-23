@@ -63,7 +63,7 @@ async fn get_blockheight() -> Result<String, Box<dyn Error>> {
     Ok(blockheight)
 }
 
-const BOOTNODES: [&str; 4] = [
+const IPFS_BOOTNODES: [&str; 4] = [
     "QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
     "QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa",
     "QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
@@ -138,8 +138,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Add the bootnodes to the local routing table. `libp2p-dns` built
     // into the `transport` resolves the `dnsaddr` when Kademlia tries
     // to dial these nodes.
-    for peer in &BOOTNODES {
-        //swarm.behaviour_mut().kademlia.set_mode(Some(Mode::Server));
+    for peer in &IPFS_BOOTNODES {
         swarm
             .behaviour_mut()
             .ipfs
