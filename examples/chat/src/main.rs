@@ -380,7 +380,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 })) => {
 
                       print!(
-                          "{} <<<<{id}/{peer_id}", String::from_utf8_lossy(&message.data),
+                          "{} <{peer_id}", String::from_utf8_lossy(&message.data),
                       );
 
                     let s = tokio::spawn(async move {
@@ -394,7 +394,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
                         //immediately print a new prompt
                         print!(
-                            "\n{body}>>> ",
+                            "\n{body}/{id}> ",
                         )
                     });
 
