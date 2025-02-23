@@ -394,7 +394,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
                         //immediately print a new prompt
                         print!(
-                            "\n{body}/{id}> ",
+                            "\n{body}/GNOSTR> ",
                         )
                     });
 
@@ -450,10 +450,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     for i in handles {
                         i.await.unwrap();
                     }
-
-
-
-
                 }
             }
         }
