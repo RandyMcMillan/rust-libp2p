@@ -921,9 +921,11 @@ name = "chat-example"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "env_logger 0.10.2",
  "futures",
  "git2",
  "libp2p",
+ "log",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -7035,6 +7037,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "02d1a66277ed75f640d608235660df48c8e3c19f3b4edb6a263315626cc3c01d"
 dependencies = [
  "base64 0.22.1",
+ "encoding_rs",
  "flate2",
  "log",
  "once_cell",

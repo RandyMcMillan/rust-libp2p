@@ -11,12 +11,14 @@ release = false
 [dependencies]
 tokio = { workspace = true, features = ["full"] }
 async-trait = "0.1"
+env_logger = "0.10.1"
 futures = { workspace = true }
 libp2p = { path = "../../libp2p", features = [ "tokio", "gossipsub", "mdns", "noise", "macros", "tcp", "yamux", "quic"] }
+log = "0.4.20"
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 git2 = "0.19.0"
-ureq = { version = "2", features = ["json"] }
+ureq = { version = "2", features = ["json", "charset"] }
 
 [lints]
 workspace = true
