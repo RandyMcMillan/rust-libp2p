@@ -7,6 +7,7 @@ use std::str;
 use std::{error::Error, time::Duration};
 
 use futures::stream::StreamExt;
+use libp2p::StreamProtocol;
 use libp2p::{
     identify, kad,
     kad::{store::MemoryStore, Mode},
@@ -14,7 +15,6 @@ use libp2p::{
     swarm::{NetworkBehaviour, SwarmEvent},
     tcp, yamux,
 };
-use libp2p::StreamProtocol;
 use tokio::{
     io::{self, AsyncBufReadExt},
     select,
@@ -56,14 +56,25 @@ fn init_subscriber(_level: Level) -> Result<(), Box<dyn Error + Send + Sync + 's
 }
 
 async fn get_blockheight() -> Result<String, Box<dyn Error>> {
-    let blockheight = reqwest::get("https://mempool.space/api/blocks/tip/height")
-        .await?
-        .text()
+    let client = reqwest::Client::builder()
+        .build()
+        .expect("should be able to build reqwest client");
+    let blockheight = client
+        .get("https://mempool.space/api/blocks/tip/height")
+        .send()
         .await?;
-    Ok(blockheight)
+    log::debug!("mempool.space status: {}", blockheight.status());
+    if blockheight.status() != reqwest::StatusCode::OK {
+        log::debug!("didn't get OK status: {}", blockheight.status());
+        Ok(String::from(">>>>>"))
+    } else {
+        let blockheight = blockheight.text().await?;
+        log::debug!("{}", blockheight);
+        Ok(blockheight)
+    }
 }
 
-const BOOTNODES: [&str; 4] = [
+const IPFS_BOOTNODES: [&str; 4] = [
     "QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
     "QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa",
     "QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
@@ -75,8 +86,8 @@ const IPFS_PROTO_NAME: StreamProtocol = StreamProtocol::new("/ipfs/kad/1.0.0");
 async fn main() -> Result<(), Box<dyn Error>> {
     let _ = init_subscriber(Level::INFO);
 
-    let blockheight = get_blockheight().await.unwrap();
-    log::info!("blockheight = {blockheight:?}");
+    //let blockheight = get_blockheight().await.unwrap();
+    //log::info!("blockheight = {blockheight:?}");
 
     //TODO create key from arg
     let args = Args::parse();
@@ -112,12 +123,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             ipfs_cfg.set_query_timeout(Duration::from_secs(5 * 60));
             let ipfs_store = kad::store::MemoryStore::new(key.public().to_peer_id());
             Ok(Behaviour {
-                ipfs: kad::Behaviour::with_config(key.public().to_peer_id(),
-                ipfs_store,
-                ipfs_cfg
-                )
-                //.add_address(&BOOTNODES[0].parse()?, "/dnsaddr/bootstrap.libp2p.io".parse()?)
-                ,
+                ipfs: kad::Behaviour::with_config(key.public().to_peer_id(), ipfs_store, ipfs_cfg),
                 identify: identify::Behaviour::new(identify::Config::new(
                     "gnostr/1.0.0".to_string(),
                     key.public(),
@@ -143,14 +149,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Add the bootnodes to the local routing table. `libp2p-dns` built
     // into the `transport` resolves the `dnsaddr` when Kademlia tries
     // to dial these nodes.
-    for peer in &BOOTNODES {
-        //swarm.behaviour_mut().kademlia.set_mode(Some(Mode::Server));
+    for peer in &IPFS_BOOTNODES {
         swarm
-            .behaviour_mut().
-            ipfs
+            .behaviour_mut()
+            .ipfs
+            .add_address(&peer.parse()?, "/dnsaddr/bootstrap.libp2p.io".parse()?);
+        swarm
+            .behaviour_mut()
+            .kademlia
             .add_address(&peer.parse()?, "/dnsaddr/bootstrap.libp2p.io".parse()?);
     }
-
 
     // TODO get weeble/blockheight/wobble
     let listen_on = swarm.listen_on("/ip4/0.0.0.0/tcp/62649".parse().unwrap());
@@ -160,8 +168,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     //net work is primed
 
     //run
-    let result = run(&args, &mut swarm.behaviour_mut().kademlia)?;
-    log::trace!("result={:?}", result);
+    //let result = run(&args, &mut swarm.behaviour_mut().kademlia).await;
+    //log::trace!("result={:?}", result);
 
     //push commit hashes and commit diffs
 
@@ -175,19 +183,23 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Kick it off.
     loop {
+        //run
+        let result = run(&args, &mut swarm.behaviour_mut().kademlia).await;
+        log::trace!("result={:?}", result);
+
         select! {
                 Ok(Some(line)) = stdin.next_line() => {
                     log::trace!("line.len()={}", line.len());
                     if line.len() <= 3 {
-                    println!("{:?}", swarm.local_peer_id());
+                    log::debug!("{:?}", swarm.local_peer_id());
                     for address in swarm.external_addresses() {
-                        println!("{:?}", address);
+                        log::trace!("{:?}", address);
                     }
                     for peer in swarm.connected_peers() {
-                        println!("{:?}", peer);
+                        log::trace!("{:?}", peer);
                     }
                     }
-                    handle_input_line(&mut swarm.behaviour_mut().kademlia, line);
+                    handle_input_line(&mut swarm.behaviour_mut().kademlia, line).await;
                 }
 
                 event = swarm.select_next_some() => match event {
@@ -259,7 +271,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                             ..
                         })
                     )) => {
-                        println!(
+                        log::info!(
                             "{{\"commit\":{:?},\"diff\":{:?}}}",
                             std::str::from_utf8(key.as_ref()).unwrap(),
                             std::str::from_utf8(&value).unwrap(),
@@ -268,7 +280,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     kad::QueryResult::GetRecord(Ok(_)) => {}
                     kad::QueryResult::GetRecord(Err(err)) => {
                         //eprintln!("Failed to get record: {err:?}");
-                        log::info!("Failed to get record: {err:?}");
+                        log::debug!("Failed to get record: {err:?}");
                     }
                     kad::QueryResult::PutRecord(Ok(kad::PutRecordOk { key })) => {
                         log::info!(
@@ -310,7 +322,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 //        .start_providing(key)
 //        .expect("Failed to start providing key");
 //}
-fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
+async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
     let mut args = line.split(' ');
 
     match args.next() {
@@ -320,7 +332,8 @@ fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
                     Some(key) => kad::RecordKey::new(&key),
                     None => {
                         eprintln!("Expected key");
-                        eprint!("194> ");
+                        //eprint!("{}/gnostr> ", get_blockheight().await.expect("REASON"));
+                        eprint!("gnostr> ");
                         return;
                     }
                 }
@@ -333,7 +346,8 @@ fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
                     Some(key) => kad::RecordKey::new(&key),
                     None => {
                         eprintln!("Expected key");
-                        eprint!("307> ");
+                        //eprint!("{}/gnostr> ", get_blockheight().await.expect("REASON"));
+                        eprint!("gnostr> ");
                         return;
                     }
                 }
@@ -346,7 +360,8 @@ fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
                     Some(key) => kad::RecordKey::new(&key),
                     None => {
                         eprintln!("Expected key");
-                        eprint!("320> ");
+                        //eprint!("{}/gnostr> ", get_blockheight().await.expect("REASON"));
+                        eprint!("gnostr> ");
                         return;
                     }
                 }
@@ -356,7 +371,8 @@ fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
                     Some(value) => value.as_bytes().to_vec(),
                     None => {
                         eprintln!("Expected value");
-                        eprint!("330> ");
+                        //eprint!("{}/gnostr> ", get_blockheight().await.expect("REASON"));
+                        eprint!("gnostr> ");
                         return;
                     }
                 }
@@ -377,7 +393,8 @@ fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
                     Some(key) => kad::RecordKey::new(&key),
                     None => {
                         eprintln!("Expected key");
-                        eprint!("351> ");
+                        //eprint!("{}/gnostr> ", get_blockheight().await.expect("REASON"));
+                        eprint!("gnostr> ");
                         return;
                     }
                 }
@@ -393,7 +410,8 @@ fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
                     Some(key) => kad::RecordKey::new(&key),
                     None => {
                         eprintln!("Expected key");
-                        eprint!("367> ");
+                        //eprint!("{}/gnostr> ", get_blockheight().await.expect("REASON"));
+                        eprint!("gnostr> ");
                         return;
                     }
                 }
@@ -413,7 +431,8 @@ fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
         }
         _ => {
             eprintln!("expected GET, GET_PROVIDERS, PUT or PUT_PROVIDER");
-            eprint!("387> ");
+            //eprint!("{}/gnostr> ", get_blockheight().await.expect("REASON"));
+            eprint!("gnostr> ");
         }
     }
 }
@@ -437,7 +456,7 @@ fn log_message_matches(msg: Option<&str>, grep: &Option<String>) -> bool {
 }
 
 //this formats and prints the commit header/message
-fn _print_commit_header(commit: &Commit) {
+fn print_commit_header(commit: &Commit) {
     println!("commit {}", commit.id());
 
     if commit.parents().len() > 1 {
@@ -450,7 +469,7 @@ fn _print_commit_header(commit: &Commit) {
 
     let author = commit.author();
     println!("Author: {}", author);
-    _print_time(&author.when(), "Date:   ");
+    print_time(&author.when(), "Date:   ");
     println!();
 
     for line in String::from_utf8_lossy(commit.message_bytes()).lines() {
@@ -461,7 +480,7 @@ fn _print_commit_header(commit: &Commit) {
 
 //called from above
 //part of formatting the output
-fn _print_time(time: &Time, prefix: &str) {
+fn print_time(time: &Time, prefix: &str) {
     let (offset, sign) = match time.offset_minutes() {
         n if n < 0 => (-n, '-'),
         n => (n, '+'),
@@ -492,7 +511,7 @@ fn match_with_parent(
     Ok(diff.deltas().len() > 0)
 }
 
-fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<(), GitError> {
+async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<(), GitError> {
     let path = args.flag_git_dir.as_ref().map(|s| &s[..]).unwrap_or(".");
     let repo = Repository::discover(path)?;
 
@@ -643,7 +662,7 @@ fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<(), Gi
 
         //commit.id
         //we want to broadcast as provider for the actual commit.id()
-        log::debug!("&commit.id={}", &commit.id());
+        log::info!("&commit.id={}", &commit.id());
 
         let key = kad::RecordKey::new(&format!("{}", &commit.id()));
 
@@ -664,11 +683,28 @@ fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<(), Gi
             .start_providing(key)
             .expect("Failed to start providing key");
 
-        //println!("commit.tree_id={}", &commit.tree_id());
-        //println!("commit.tree={:?}", &commit.tree());
-        //println!("commit.raw={:?}", &commit.raw()); //pointer?
+        println!("commit.tree_id={}", &commit.tree_id());
+        let key = kad::RecordKey::new(&format!("{}", &commit.tree_id()));
+        println!("commit.tree={:?}", &commit.tree());
+        let value = Vec::from(format!("{:?}", commit.tree()));
+        let record = kad::Record {
+            key,
+            value,
+            publisher: None,
+            expires: None,
+        };
+        kademlia
+            .put_record(record, kad::Quorum::One)
+            .expect("Failed to store record locally.");
+        let key = kad::RecordKey::new(&format!("{}", &commit.id()));
+        kademlia
+            .start_providing(key)
+            .expect("Failed to start providing key");
 
-        //println!("commit.message={:?}", &commit.message()); //commit diff body
+        println!("commit.tree={:?}", &commit.tree());
+        println!("commit.raw={:?}", &commit.raw()); //pointer?
+
+        println!("commit.message={:?}", &commit.message()); //commit diff body
         let mut part_index = 0;
         let commit_parts = commit.message().clone().unwrap().split("\n");
         //let parts = commit.message().clone().unwrap().split("gpgsig");
@@ -684,7 +720,7 @@ fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<(), Gi
 
         ////println!("commit.message_bytes{:?}", &commit.message_bytes());
         //println!("commit.message_encoding={:?}", &commit.message_encoding());
-        //println!("commit.message_raw={:?}", &commit.message_raw());
+        println!("commit.message_raw={:?}", &commit.message_raw());
         ////println!("commit.message_raw_bytes={:?}", &commit.message_raw_bytes());
 
         //raw_header
@@ -700,13 +736,13 @@ fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<(), Gi
         //};
         ////println!("commit.header_field_bytes={:?}", &commit.header_field_bytes());
         ////println!("commit.raw_header_bytes={:?}", &commit.raw_header_bytes());
-        //println!("commit.summary={:?}", &commit.summary());
+        println!("commit.summary={:?}", &commit.summary());
         ////println!("commit.summary_bytes={:?}", &commit.summary_bytes());
-        //println!("commit.body={:?}", &commit.body());
+        println!("commit.body={:?}", &commit.body());
         ////println!("commit.body_bytes={:?}", &commit.body_bytes());
-        //println!("commit.time={:?}", &commit.time());
-        //println!("commit.author={:?}", &commit.author().name());
-        //print_commit_header(&commit);
+        println!("commit.time={:?}", &commit.time());
+        println!("commit.author={:?}", &commit.author().name());
+        print_commit_header(&commit);
 
         if !args.flag_patch || commit.parents().len() > 1 {
             continue;

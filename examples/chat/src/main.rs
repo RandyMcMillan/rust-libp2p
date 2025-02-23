@@ -24,13 +24,17 @@ use std::{
     collections::hash_map::DefaultHasher,
     error::Error,
     hash::{Hash, Hasher},
+    thread,
     time::Duration,
 };
 
 use futures::stream::StreamExt;
-use git2::Repository;
-use git2::ErrorCode;
 use git2::Config;
+use git2::ErrorCode;
+use git2::Repository;
+
+use ureq::{Agent, AgentBuilder};
+
 use libp2p::{
     gossipsub, mdns, noise,
     swarm::{NetworkBehaviour, SwarmEvent},
@@ -110,9 +114,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("Commit ID: {}", commit.id());
 
     // Optionally, print other commit information
-    println!("Commit message: {}", commit.message().unwrap_or("No message"));
-
-
+    println!(
+        "Commit message: {}",
+        commit.message().unwrap_or("No message")
+    );
 
     let topic = gossipsub::IdentTopic::new(format!("{:0>64}", commit.id()));
     println!("Topic: {:0>64}", topic);
@@ -128,8 +133,49 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     println!("Enter messages via STDIN and they will be sent to connected peers using Gossipsub");
 
+        let s = tokio::spawn(async move {
+            let agent: Agent = ureq::AgentBuilder::new()
+                .timeout_read(Duration::from_secs(5))
+                .timeout_write(Duration::from_secs(5))
+                .build();
+            let body: String = agent
+                .get("https://mempool.sweetsats.io/api/blocks/tip/height")
+                .call()
+                .expect("")
+                .into_string()
+                .expect("");
+
+            print!("{body}> ",)
+        });
+        let mut handles = Vec::new();
+        handles.push(s);
+
+        for i in handles {
+            i.await.unwrap();
+        }
     // Kick it off
     loop {
+        //let s = tokio::spawn(async move {
+        //    let agent: Agent = ureq::AgentBuilder::new()
+        //        .timeout_read(Duration::from_secs(5))
+        //        .timeout_write(Duration::from_secs(5))
+        //        .build();
+        //    let body: String = agent
+        //        .get("https://mempool.sweetsats.io/api/blocks/tip/height")
+        //        .call()
+        //        .expect("")
+        //        .into_string()
+        //        .expect("");
+
+        //    print!("{body}> ",)
+        //});
+
+        //let mut handles = Vec::new();
+        //handles.push(s);
+
+        //for i in handles {
+        //    i.await.unwrap();
+        //}
         select! {
             Ok(Some(line)) = stdin.next_line() => {
                 if let Err(e) = swarm
@@ -141,13 +187,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
             event = swarm.select_next_some() => match event {
                 SwarmEvent::Behaviour(MyBehaviourEvent::Mdns(mdns::Event::Discovered(list))) => {
                     for (peer_id, _multiaddr) in list {
-                        println!("mDNS discovered a new peer: {peer_id}");
+                        print!("mDNS discovered a new peer: {peer_id}");
                         swarm.behaviour_mut().gossipsub.add_explicit_peer(&peer_id);
                     }
                 },
                 SwarmEvent::Behaviour(MyBehaviourEvent::Mdns(mdns::Event::Expired(list))) => {
                     for (peer_id, _multiaddr) in list {
-                        println!("mDNS discover peer has expired: {peer_id}");
+                        print!("mDNS discover peer has expired: {peer_id}");
                         swarm.behaviour_mut().gossipsub.remove_explicit_peer(&peer_id);
                     }
                 },
@@ -155,12 +201,72 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     propagation_source: peer_id,
                     message_id: id,
                     message,
-                })) => println!(
-                        "Got message: '{}' with id: {id} from peer: {peer_id}",
-                        String::from_utf8_lossy(&message.data),
-                    ),
+                })) => {
+                    let mut handles = Vec::new();
+                    let r = tokio::spawn(async move {
+                        let agent: Agent = ureq::AgentBuilder::new()
+                            .timeout_read(Duration::from_secs(1))
+                            .timeout_write(Duration::from_secs(1))
+                            .build();
+                        let body: String = agent.get("https://mempool.sweetsats.io/api/blocks/tip/height")
+                            .call().expect("")
+                            .into_string().expect("");
+
+                        print!(
+                            "{}", String::from_utf8_lossy(&message.data),
+                        )
+                    });
+                    handles.push(r);
+                    for i in handles {
+                        i.await.unwrap();
+                    }
+
+                    let s = tokio::spawn(async move {
+                        let agent: Agent = ureq::AgentBuilder::new()
+                            .timeout_read(Duration::from_secs(5))
+                            .timeout_write(Duration::from_secs(5))
+                            .build();
+                        let body: String = agent.get("https://mempool.sweetsats.io/api/blocks/tip/height")
+                            .call().expect("")
+                            .into_string().expect("");
+
+                        print!(
+                            "\n214:{body}> ",
+                        )
+                    });
+
+                    let mut handles = Vec::new();
+                    handles.push(s);
+
+                    for i in handles {
+                        i.await.unwrap();
+                    }
+                },
                 SwarmEvent::NewListenAddr { address, .. } => {
-                    println!("Local node is listening on {address}");
+                    let s = tokio::spawn(async move {
+                        let agent: Agent = ureq::AgentBuilder::new()
+                            .timeout_read(Duration::from_secs(5))
+                            .timeout_write(Duration::from_secs(5))
+                            .build();
+                        let body: String = agent.get("https://mempool.sweetsats.io/api/blocks/tip/height")
+                            .call().expect("")
+                            .into_string().expect("");
+
+                        print!(
+                            "\n256:{body}> ",
+                        )
+                    });
+
+                    let mut handles = Vec::new();
+                    handles.push(s);
+
+                    for i in handles {
+                        i.await.unwrap();
+                    }
+
+
+
+                    print!("Local node is listening on {address}");
                 }
                 _ => {}
             }

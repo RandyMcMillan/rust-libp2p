@@ -1,3 +1,42 @@
+set shell := ["sh", "-c"]
+set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
+set allow-duplicate-recipes
+set positional-arguments
+set dotenv-load
+set export
+
+alias tmp := tmpdir
+
+bt := '0'
+
+export RUST_BACKTRACE_1 := bt
+
+log := "warn"
+
+export JUST_LOG := (log + "ing" + `grep loop /etc/networks | cut -f2`)
+
+tmpdir  := `mktemp`
+version := "0.2.7"
+tardir  := tmpdir / "awesomesauce-" + version
+foo1    := / "tmp"
+foo2_3  := "a/"
+tarball := tardir + ".tar.gz"
+
+export RUST_BACKTRACE_2 := "1"
+string-with-tab             := "\t"
+string-with-newline         := "\n"
+string-with-carriage-return := "\r"
+string-with-double-quote    := "\""
+string-with-slash           := "\\"
+string-with-no-newline      := "\
+"
+
+# Newlines in variables
+single := '
+hello
+'
+
+
 alias d := doc
 alias l := nix-lint
 alias uf := nix-update-flake-dependencies
@@ -10,6 +49,9 @@ alias cw := cargo-watch
 
 default:
     @just --choose
+
+tmpdir:
+  sh -c  TMPDIR=$(mktemp);export TMPDIR; echo $TMPDIR; touch $TMPDIR/file
 
 clippy:
     cargo clippy --all-targets --all-features
@@ -76,8 +118,16 @@ dcutr-example:
 distributed-key-value-store-example:
     cargo run --bin   distributed-key-value-store-example
 
-file-sharing-example:
-    cargo run --bin   file-sharing-example
+distributed-commit-list:
+    cargo run --bin   distributed-commit-list
+
+@exec *args='':
+  bash -c 'while (( "$#" )); do $1; shift; done' -- "$@"
+
+#just file-sharing-example provide README.md README.md
+file-sharing-example *args='':
+  @just exec "cargo b --bin file-sharing-example"
+  bash -c 'while (( "$#" )); do cargo run --bin file-sharing-example -- $1 --path $2 --name $3; shift; done' -- "$@"
 
 hole-punching-tests:
     cargo run --bin   hole-punching-tests
