@@ -133,32 +133,32 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     println!("Enter messages via STDIN and they will be sent to connected peers using Gossipsub");
 
-        let s = tokio::spawn(async move {
-            let agent: Agent = ureq::AgentBuilder::new()
-                .timeout_read(Duration::from_secs(5))
-                .timeout_write(Duration::from_secs(5))
-                .build();
-            let body: String = agent
-                .get("https://mempool.sweetsats.io/api/blocks/tip/height")
-                .call()
-                .expect("")
-                .into_string()
-                .expect("");
+    let s = tokio::spawn(async move {
+        let agent: Agent = ureq::AgentBuilder::new()
+            .timeout_read(Duration::from_secs(1))
+            .timeout_write(Duration::from_secs(1))
+            .build();
+        let body: String = agent
+            .get("https://mempool.sweetsats.io/api/blocks/tip/height")
+            .call()
+            .expect("")
+            .into_string()
+            .expect("");
 
-            print!("{body}> ",)
-        });
-        let mut handles = Vec::new();
-        handles.push(s);
+        print!("{body}> ",)
+    });
+    let mut handles = Vec::new();
+    handles.push(s);
 
-        for i in handles {
-            i.await.unwrap();
-        }
+    for i in handles {
+        i.await.unwrap();
+    }
     // Kick it off
     loop {
         let s = tokio::spawn(async move {
             let agent: Agent = ureq::AgentBuilder::new()
-                .timeout_read(Duration::from_secs(5))
-                .timeout_write(Duration::from_secs(5))
+                .timeout_read(Duration::from_secs(1))
+                .timeout_write(Duration::from_secs(1))
                 .build();
             let body: String = agent
                 .get("https://mempool.sweetsats.io/api/blocks/tip/height")
@@ -167,7 +167,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 .into_string()
                 .expect("");
 
-            print!("\n170:{body}> ",);
+            //print!("\n170:{body}> ",);
         });
 
         //let mut handles = Vec::new();
@@ -181,8 +181,54 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 if let Err(e) = swarm
                     .behaviour_mut().gossipsub
                     .publish(topic.clone(), line.as_bytes()) {
-                    println!("Publish error: {e:?}");
+
+                let s = tokio::spawn(async move {
+                    let agent: Agent = ureq::AgentBuilder::new()
+                        .timeout_read(Duration::from_secs(1))
+                        .timeout_write(Duration::from_secs(1))
+                        .build();
+                    let body: String = agent
+                        .get("https://mempool.sweetsats.io/api/blocks/tip/height")
+                        .call()
+                        .expect("")
+                        .into_string()
+                        .expect("");
+
+                    //print!("\n197:{body}> {e:?}",);
+                });
+                let mut handles = Vec::new();
+                handles.push(s);
+
+                //for i in handles {
+                //    i.await.unwrap();
+                //}
+
+
+            }
+
+                let s = tokio::spawn(async move {
+                    let agent: Agent = ureq::AgentBuilder::new()
+                        .timeout_read(Duration::from_secs(1))
+                        .timeout_write(Duration::from_secs(1))
+                        .build();
+                    let body: String = agent
+                        .get("https://mempool.sweetsats.io/api/blocks/tip/height")
+                        .call()
+                        .expect("")
+                        .into_string()
+                        .expect("");
+
+                    print!("\n221:{body}> ");
+                });
+                let mut handles = Vec::new();
+                handles.push(s);
+
+                for i in handles {
+                    i.await.unwrap();
                 }
+
+
+
             }
             event = swarm.select_next_some() => match event {
                 SwarmEvent::Behaviour(MyBehaviourEvent::Mdns(mdns::Event::Discovered(list))) => {
@@ -223,8 +269,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
                     let s = tokio::spawn(async move {
                         let agent: Agent = ureq::AgentBuilder::new()
-                            .timeout_read(Duration::from_secs(5))
-                            .timeout_write(Duration::from_secs(5))
+                            .timeout_read(Duration::from_secs(1))
+                            .timeout_write(Duration::from_secs(1))
                             .build();
                         let body: String = agent.get("https://mempool.sweetsats.io/api/blocks/tip/height")
                             .call().expect("")
@@ -245,8 +291,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 SwarmEvent::NewListenAddr { address, .. } => {
                     let s = tokio::spawn(async move {
                         let agent: Agent = ureq::AgentBuilder::new()
-                            .timeout_read(Duration::from_secs(5))
-                            .timeout_write(Duration::from_secs(5))
+                            .timeout_read(Duration::from_secs(1))
+                            .timeout_write(Duration::from_secs(1))
                             .build();
                         let body: String = agent.get("https://mempool.sweetsats.io/api/blocks/tip/height")
                             .call().expect("")
