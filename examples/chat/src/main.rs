@@ -155,20 +155,20 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
     // Kick it off
     loop {
-        //let s = tokio::spawn(async move {
-        //    let agent: Agent = ureq::AgentBuilder::new()
-        //        .timeout_read(Duration::from_secs(5))
-        //        .timeout_write(Duration::from_secs(5))
-        //        .build();
-        //    let body: String = agent
-        //        .get("https://mempool.sweetsats.io/api/blocks/tip/height")
-        //        .call()
-        //        .expect("")
-        //        .into_string()
-        //        .expect("");
+        let s = tokio::spawn(async move {
+            let agent: Agent = ureq::AgentBuilder::new()
+                .timeout_read(Duration::from_secs(5))
+                .timeout_write(Duration::from_secs(5))
+                .build();
+            let body: String = agent
+                .get("https://mempool.sweetsats.io/api/blocks/tip/height")
+                .call()
+                .expect("")
+                .into_string()
+                .expect("");
 
-        //    print!("{body}> ",)
-        //});
+            print!("\n170:{body}> ",);
+        });
 
         //let mut handles = Vec::new();
         //handles.push(s);
