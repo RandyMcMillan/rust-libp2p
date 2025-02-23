@@ -112,6 +112,69 @@ browser-webrtc-example:
 chat-example:
     cargo run --bin   chat-example
 
+install-chat-example:
+    @just exec "cargo install --bin chat-example --path examples/chat"
+
+
+install-autonat_client:
+    @just exec "cargo install --bin autonat_client --path examples/autonat"
+install-autonat_server:
+    @just exec "cargo install --bin autonat_server --path examples/autonat"
+install-autonatv2_client:
+    @just exec "cargo install --bin chat-example --path examples/chat"
+install-autonatv2_server:
+    @just exec "cargo install --bin chat-example --path examples/chat"
+install-browser-webrtc-example:
+    @just exec "cargo install --bin chat-example --path examples/chat"
+install-chat-example:
+    @just exec "cargo install --bin chat-example --path examples/chat"
+install-dcutr-example:
+    @just exec "cargo install --bin chat-example --path examples/chat"
+install-distributed-commit-list:
+    @just exec "cargo install --bin chat-example --path examples/chat"
+install-distributed-key-value-store-example:
+    @just exec "cargo install --bin chat-example --path examples/chat"
+install-file-sharing-example:
+    @just exec "cargo install --bin chat-example --path examples/chat"
+install-gnostr-p2p:
+    @just exec "cargo install --bin gnostr-p2p --path libp2p"
+install-hole-punching-tests:
+    @just exec "cargo install --bin chat-example --path examples/chat"
+install-identify-example:
+    @just exec "cargo install --bin chat-example --path examples/chat"
+install-ipfs-kad-example:
+    @just exec "cargo install --bin chat-example --path examples/chat"
+install-ipfs-private-example:
+    @just exec "cargo install --bin chat-example --path examples/chat"
+install-keygen:
+    @just exec "cargo install --bin keygen --path misc/keygen"
+install-libp2p-server:
+    @just exec "cargo install --bin chat-example --path examples/chat"
+install-metrics-example:
+    @just exec "cargo install --bin chat-example --path examples/chat"
+install-native_ping:
+    @just exec "cargo install --bin chat-example --path examples/chat"
+install-perf:
+    @just exec "cargo install --bin chat-example --path examples/chat"
+install-ping-example:
+    @just exec "cargo install --bin chat-example --path examples/chat"
+install-relay-server-example:
+    @just exec "cargo install --bin chat-example --path examples/chat"
+install-rendezvous-example:
+    @just exec "cargo install --bin chat-example --path examples/chat"
+install-rzv-discover:
+    @just exec "cargo install --bin chat-example --path examples/chat"
+install-rzv-identify:
+    @just exec "cargo install --bin chat-example --path examples/chat"
+install-rzv-register:
+    @just exec "cargo install --bin chat-example --path examples/chat"
+install-stream-example:
+    @just exec "cargo install --bin chat-example --path examples/chat"
+install-upnp-example:
+    @just exec "cargo install --bin chat-example --path examples/chat"
+install-wasm_ping:
+    @just exec "cargo install --bin chat-example --path examples/chat"
+
 dcutr-example:
     cargo run --bin   dcutr-example
 
