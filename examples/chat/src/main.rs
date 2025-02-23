@@ -380,7 +380,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 })) => {
 
                       print!(
-                          "{}", String::from_utf8_lossy(&message.data),
+                          "{} <<<<{id}/{peer_id}", String::from_utf8_lossy(&message.data),
                       );
 
                     let s = tokio::spawn(async move {
@@ -394,7 +394,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
                         //immediately print a new prompt
                         print!(
-                            "\n397:{peer_id}/{id}/{body}>>> ",
+                            "\n{body}>>> ",
                         )
                     });
 
@@ -416,7 +416,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                             .into_string().expect("");
 
                         print!(
-                            "\n419:{body}> ",
+                            "\n{address:?}/{body}> ",
                         )
                     });
 
@@ -427,9 +427,34 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         i.await.unwrap();
                     }
 
-                    info!("Local node is listening on {address}");
+                    //info!("Local node is listening on {address}");
                 }
-                _ => {}
+                _ => {
+                    let s = tokio::spawn(async move {
+                        let agent: Agent = ureq::AgentBuilder::new()
+                            .timeout_read(Duration::from_secs(1))
+                            .timeout_write(Duration::from_secs(1))
+                            .build();
+                        let body: String = agent.get(mempool_url)
+                            .call().expect("")
+                            .into_string().expect("");
+
+                        print!(
+                            "\n{body}> ",
+                        )
+                    });
+
+                    let mut handles = Vec::new();
+                    handles.push(s);
+
+                    for i in handles {
+                        i.await.unwrap();
+                    }
+
+
+
+
+                }
             }
         }
     }
