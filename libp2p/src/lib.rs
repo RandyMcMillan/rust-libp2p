@@ -169,7 +169,6 @@ pub use self::{
     transport_ext::TransportExt,
 };
 
-
 pub mod functions;
 pub mod ws;
 pub use functions::client;

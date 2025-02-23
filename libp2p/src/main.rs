@@ -15,9 +15,7 @@ fn handle_message(relay_url: &String, message: &Message) -> Result<(), String> {
 
 #[tokio::main]
 async fn main() {
-    let mut nostr_client = Client::new(vec!["wss://relay.damus.io"])
-        .await
-        .unwrap();
+    let mut nostr_client = Client::new(vec!["wss://relay.damus.io"]).await.unwrap();
 
     // Run a new thread to handle messages
 
