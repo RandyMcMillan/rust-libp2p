@@ -104,7 +104,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 println!("message.data:\n{0:?}", message.data);
                 println!("message.source:\n{0:?}", message.source);
                 println!("message.source:\n{0:1?}", message.source);
-                println!("message.source:\n{0:2?}", message.source.unwrap());
+                println!("message.source.peer_id:\n{0:2?}", message.source.unwrap());
+                println!("message.source.peer_id:\n{0:3?}", message.source.unwrap().to_string());
                 println!("message.sequence_number:\n{0:?}", message.sequence_number);
                 println!("message.topic:\n{0:?}", message.topic);
                 println!("message.topic.hash:\n{0:0}", message.topic.clone());
