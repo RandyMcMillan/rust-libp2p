@@ -24,32 +24,27 @@ use std::{
     collections::hash_map::DefaultHasher,
     error::Error,
     hash::{Hash, Hasher},
-    thread,
+    //    thread,
     time::Duration,
 };
 
 use futures::stream::StreamExt;
-use git2::Config;
-use git2::ErrorCode;
+//use git2::Config;
+//use git2::ErrorCode;
 use git2::Repository;
 
-use ureq::{Agent, AgentBuilder, Error as UreqError};
+use ureq::{Agent /*, AgentBuilder*/, Error as UreqError};
 
+use env_logger::{Builder, Env};
 use libp2p::{
     gossipsub, mdns, noise,
     swarm::{NetworkBehaviour, SwarmEvent},
     tcp, yamux,
 };
+use log::{debug, error, info, trace};
 use std::env;
-use tokio::{io, io::AsyncBufReadExt, select};
-use tracing_subscriber::fmt::format;
-use tracing_subscriber::EnvFilter;
-
-use tracing_subscriber::fmt::format::Format;
-
-use env_logger::{Builder, Env};
-use log::{debug, error, info, trace, warn};
 use std::env::args;
+use tokio::{io, io::AsyncBufReadExt, select};
 
 // We create a custom network behaviour that combines Gossipsub and Mdns.
 #[derive(NetworkBehaviour)]
@@ -60,21 +55,24 @@ struct MyBehaviour {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    //let _ = tracing_subscriber::fmt()
-    //    .with_env_filter(EnvFilter::from_default_env())
-    //    .try_init();
-
     let args_vec: Vec<String> = env::args().collect();
 
     if args_vec.len() < 2 {
-        info!("Please provide at least one argument.");
+        debug!("Please provide at least one argument.");
         ()
     }
 
     if let Some(log_level) = args().nth(1) {
-        Builder::from_env(Env::default().default_filter_or(log_level)).init();
+        Builder::from_env(
+            Env::default()
+                .default_filter_or(format!("{},libp2p2_gossipsub::behaviour=error", log_level)),
+        )
+        .init();
     } else {
-        Builder::from_env(Env::default().default_filter_or("warn")).init();
+        Builder::from_env(
+            Env::default().default_filter_or("none,libp2p_gossipsub::behaviour=error"),
+        )
+        .init();
     }
 
     trace!("Arguments:");
@@ -100,20 +98,20 @@ async fn main() -> Result<(), Box<dyn Error>> {
             let message_id_fn = |message: &gossipsub::Message| {
                 let mut s = DefaultHasher::new();
                 message.data.hash(&mut s);
-                info!("message:\n{0:?}", message);
-                info!("message.data:\n{0:?}", message.data);
-                info!("message.source:\n{0:?}", message.source);
-                info!("message.source:\n{0:1?}", message.source);
-                info!("message.source.peer_id:\n{0:2?}", message.source.unwrap());
+                debug!("message:\n{0:?}", message);
+                debug!("message.data:\n{0:?}", message.data);
+                debug!("message.source:\n{0:?}", message.source);
+                debug!("message.source:\n{0:1?}", message.source);
+                debug!("message.source.peer_id:\n{0:2?}", message.source.unwrap());
                 //TODO https://docs.rs/gossipsub/latest/gossipsub/trait.DataTransform.html
                 //send Recieved message back
-                info!(
+                debug!(
                     "message.source.peer_id:\n{0:3}",
                     message.source.unwrap().to_string()
                 );
-                info!("message.sequence_number:\n{0:?}", message.sequence_number);
-                info!("message.topic:\n{0:?}", message.topic);
-                info!("message.topic.hash:\n{0:0}", message.topic.clone());
+                debug!("message.sequence_number:\n{0:?}", message.sequence_number);
+                debug!("message.topic:\n{0:?}", message.topic);
+                debug!("message.topic.hash:\n{0:0}", message.topic.clone());
                 //println!("{:?}", s);
                 gossipsub::MessageId::from(s.finish().to_string())
             };
@@ -143,7 +141,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         })? // end of behaviour
         .build();
 
-    // Create a Gossipsub topic
+    // Create a Gossipsub topic from padded commit.id
     // Open the Git repository
     let repo = Repository::discover(".")?; // Opens the repository in the current directory
 
@@ -167,6 +165,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     //TODO add cli topic arg
     //commit.id is padded to fit sha256/nostr privkey context
+    //TODO fn get_topic() -> commit.id {} tolerate git repo HEAD change
+    //and change topic
     let topic = gossipsub::IdentTopic::new(format!("{:0>64}", commit.id()));
     println!("TOPIC> {:0>64}", topic);
 
@@ -191,16 +191,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let ureq_test = tokio::spawn(async move {
         match ureq::get(mempool_url).call() {
             Ok(response) => {
-                /* it worked */
-
                 debug!("{response:?}");
             }
             Err(UreqError::Status(code, response)) => {
                 debug!("{response:?}");
                 mempool_url = sweetsats_url;
-                //mempool_url = gob_sv_url;
-                /* the server returned an unexpected status
-                code (such as 400, 500 etc) */
                 error!("{mempool_url:?}/{code:?}/{response:?}");
             }
             Err(_) => { /* some kind of io/transport error */ }
@@ -215,16 +210,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let ureq_test = tokio::spawn(async move {
         match ureq::get(mempool_url).call() {
             Ok(response) => {
-                /* it worked */
-
                 debug!("{response:?}");
             }
             Err(UreqError::Status(code, response)) => {
                 debug!("{response:?}");
-                //mempool_url = sweetsats_url;
                 mempool_url = gob_sv_url;
-                /* the server returned an unexpected status
-                code (such as 400, 500 etc) */
                 error!("{mempool_url:?}/{code:?}/{response:?}");
             }
             Err(_) => { /* some kind of io/transport error */ }
@@ -250,7 +240,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
         print!("{body}> ",)
     });
-    //let mut handles = Vec::new();
     handles.push(s);
 
     for i in handles {
@@ -258,19 +247,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
     // Kick it off
     loop {
+        //TODO: better mempool blocks/tip/height config
         let mut handles = Vec::new();
         let ureq_test = tokio::spawn(async move {
             match ureq::get(mempool_url).call() {
                 Ok(response) => {
-                    /* it worked */
                     debug!("{response:?}");
                 }
                 Err(UreqError::Status(code, response)) => {
                     debug!("{response:?}");
                     mempool_url = sweetsats_url;
                     //mempool_url = gob_sv_url;
-                    /* the server returned an unexpected status
-                    code (such as 400, 500 etc) */
                     error!("{mempool_url:?}/{code:?}/{response:?}");
                 }
                 Err(_) => { /* some kind of io/transport error */ }
@@ -291,8 +278,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     //debug!("{response:?}");
                     //mempool_url = sweetsats_url;
                     mempool_url = gob_sv_url;
-                    /* the server returned an unexpected status
-                    code (such as 400, 500 etc) */
                     error!("{mempool_url:?}/{code:?}/{response:?}");
                 }
                 Err(_) => { /* some kind of io/transport error */ }
@@ -306,8 +291,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         select! {
             Ok(Some(mut line)) = stdin.next_line() => {
                 if line.len() == 0 {
-                    //print!("309:line.len()={}", line.len());
-                    //formatting for error prompt
                     let s = tokio::spawn(async move {
                         let agent: Agent = ureq::AgentBuilder::new()
                             .timeout_read(Duration::from_secs(1))
@@ -331,8 +314,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
                 } else {
                 if line.len() == 1 {
-                    //print!("334:line.len()={}", line.len());
-
                     let char_index = 0;
                     for c in line.chars() {
                         if c == ':' && char_index == 0 {
@@ -346,10 +327,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         //enter another mode
                         } else {}
                     }
-                    //line = String::from("");
                 } else {
-                    //print!("350line.len()={}", line.len());
-
                     //detect compose/send command
                     let mut char_index = 0;
                     for c in line.chars() {
@@ -358,7 +336,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
                             char_index += 1;
                         } else
 
-
                         if c == 'c' && char_index == 1 {
                             //compose command
                             println!("\ndetected command prompt");
@@ -366,8 +343,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
                             char_index += 1;
                             let line = "detected compose prompt".to_string();
                         } else
-
-
 
                         if c == 's' && char_index == 1 {
                             //send command
@@ -380,7 +355,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                             if let Err(e) = swarm
                                 .behaviour_mut().gossipsub
                                 //SEND
-                                .publish(topic.clone(), line.as_bytes()) { /*error!("{e}");*/ }
+                                .publish(topic.clone(), line.as_bytes()) { debug!("{e}"); }
 
                             }
 
@@ -421,7 +396,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 })) => {
 
                       print!(
-                          "{} <{peer_id}", String::from_utf8_lossy(&message.data),
+                          "{} <{peer_id}/{id}", String::from_utf8_lossy(&message.data),
                       );
 
                     let s = tokio::spawn(async move {
@@ -457,8 +432,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
                             "\nGNOSTR{address}> ",
                         );
 
-
-                    //info!("Local node is listening on {address}");
                 }
                 _ => {
                     let s = tokio::spawn(async move {
