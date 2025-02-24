@@ -319,7 +319,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                             .into_string()
                             .expect("");
 
-                        print!("\n322:{body}> print help message",);
+                        println!("GNOSTR/{body}> print help message",);
                     });
                     let mut handles = Vec::new();
                     handles.push(s);
@@ -328,13 +328,27 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         i.await.unwrap(); //write to term
                     }
 
+                } else {
+                if line.len() == 1 {
 
+                    let char_index = 0;
+                    for c in line.chars() {
+                        if c == ':' && char_index == 0 {
+                        println!("\nc={c}:{char_index}");//detected command prompt
+                        //enter another mode
+                        }
+                        if c == '\\' && char_index == 0 {
+                        println!("\nc={c}:{char_index}");//detected command prompt
+                        //enter another mode
+                        }
+                    }
                 } else {
 
                 if let Err(e) = swarm
                     .behaviour_mut().gossipsub
                     //SEND
                     .publish(topic.clone(), line.as_bytes()) { error!("{e}"); }
+                }
             }
             }
             event = swarm.select_next_some() => match event {
