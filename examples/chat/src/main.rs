@@ -100,15 +100,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
             let message_id_fn = |message: &gossipsub::Message| {
                 let mut s = DefaultHasher::new();
                 message.data.hash(&mut s);
-                println!("message:\n{0:?}", message);
-                println!("message.data:\n{0:?}", message.data);
-                println!("message.source:\n{0:?}", message.source);
-                println!("message.source:\n{0:1?}", message.source);
-                println!("message.source.peer_id:\n{0:2?}", message.source.unwrap());
-                println!("message.source.peer_id:\n{0:3}", message.source.unwrap().to_string());
-                println!("message.sequence_number:\n{0:?}", message.sequence_number);
-                println!("message.topic:\n{0:?}", message.topic);
-                println!("message.topic.hash:\n{0:0}", message.topic.clone());
+                info!("message:\n{0:?}", message);
+                info!("message.data:\n{0:?}", message.data);
+                info!("message.source:\n{0:?}", message.source);
+                info!("message.source:\n{0:1?}", message.source);
+                info!("message.source.peer_id:\n{0:2?}", message.source.unwrap());
+                //TODO https://docs.rs/gossipsub/latest/gossipsub/trait.DataTransform.html
+                //send Recieved message back
+                info!("message.source.peer_id:\n{0:3}", message.source.unwrap().to_string());
+                info!("message.sequence_number:\n{0:?}", message.sequence_number);
+                info!("message.topic:\n{0:?}", message.topic);
+                info!("message.topic.hash:\n{0:0}", message.topic.clone());
                 //println!("{:?}", s);
                 gossipsub::MessageId::from(s.finish().to_string())
             };
@@ -253,6 +255,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
     // Kick it off
     loop {
+
+
+
         let mut handles = Vec::new();
         let ureq_test = tokio::spawn(async move {
             match ureq::get(mempool_url).call() {
@@ -300,79 +305,37 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
         select! {
             Ok(Some(line)) = stdin.next_line() => {
+                if line.len() == 0 {
+                    //formatting for error prompt
+                    let s = tokio::spawn(async move {
+                        let agent: Agent = ureq::AgentBuilder::new()
+                            .timeout_read(Duration::from_secs(1))
+                            .timeout_write(Duration::from_secs(1))
+                            .build();
+                        let body: String = agent
+                            .get(mempool_url)
+                            .call()
+                            .expect("")
+                            .into_string()
+                            .expect("");
+
+                        print!("\n322:{body}> print help message",);
+                    });
+                    let mut handles = Vec::new();
+                    handles.push(s);
+
+                    for i in handles {
+                        i.await.unwrap(); //write to term
+                    }
+
+
+                } else {
+
                 if let Err(e) = swarm
                     .behaviour_mut().gossipsub
                     //SEND
-                    .publish(topic.clone(), line.as_bytes()) {
-
-                    //formatting for error prompt
-                    //let s = tokio::spawn(async move {
-                    //    let agent: Agent = ureq::AgentBuilder::new()
-                    //        .timeout_read(Duration::from_secs(1))
-                    //        .timeout_write(Duration::from_secs(1))
-                    //        .build();
-                    //    let body: String = agent
-                    //        .get(mempool_url)
-                    //        .call()
-                    //        .expect("")
-                    //        .into_string()
-                    //        .expect("");
-
-                    //    print!("\n304:{body}> {e:?}",);
-                    //});
-                    //let mut handles = Vec::new();
-                    //handles.push(s);
-
-                    //for i in handles {
-                    //    i.await.unwrap(); //write to term
-                    //}
-                }
-
-            //let s = tokio::spawn(async move {
-            //    let agent: Agent = ureq::AgentBuilder::new()
-            //        .timeout_read(Duration::from_secs(1))
-            //        .timeout_write(Duration::from_secs(1))
-            //        .build();
-            //    let body: String = agent
-            //        .get("https://mempool.space/api/blocks/tip/height")
-            //        .call()
-            //        .expect("")
-            //        .into_string()
-            //        .expect("");
-
-            //    print!("\n326:{body}> ");
-            //});
-            //let mut handles = Vec::new();
-            //handles.push(s);
-
-            //for i in handles {
-            //    i.await.unwrap();
-            //}
-
-
-            //}
-
-            //let s = tokio::spawn(async move {
-            //    let agent: Agent = ureq::AgentBuilder::new()
-            //        .timeout_read(Duration::from_secs(1))
-            //        .timeout_write(Duration::from_secs(1))
-            //        .build();
-            //    let body: String = agent
-            //        .get(mempool_url)
-            //        .call()
-            //        .expect("")
-            //        .into_string()
-            //        .expect("");
-
-            //    print!("\n350:{body}> ");
-            //});
-            //let mut handles = Vec::new();
-            //handles.push(s);
-
-            //for i in handles {
-            //    i.await.unwrap();
-            //}
-
+                    .publish(topic.clone(), line.as_bytes()) { error!("{e}"); }
+            }
             }
             event = swarm.select_next_some() => match event {
                 //NOTE MyBehaviour
