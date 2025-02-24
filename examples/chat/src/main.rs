@@ -107,7 +107,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 info!("message.source.peer_id:\n{0:2?}", message.source.unwrap());
                 //TODO https://docs.rs/gossipsub/latest/gossipsub/trait.DataTransform.html
                 //send Recieved message back
-                info!("message.source.peer_id:\n{0:3}", message.source.unwrap().to_string());
+                info!(
+                    "message.source.peer_id:\n{0:3}",
+                    message.source.unwrap().to_string()
+                );
                 info!("message.sequence_number:\n{0:?}", message.sequence_number);
                 info!("message.topic:\n{0:?}", message.topic);
                 info!("message.topic.hash:\n{0:0}", message.topic.clone());
@@ -255,9 +258,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
     // Kick it off
     loop {
-
-
-
         let mut handles = Vec::new();
         let ureq_test = tokio::spawn(async move {
             match ureq::get(mempool_url).call() {
@@ -304,7 +304,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
 
         select! {
-            Ok(Some(line)) = stdin.next_line() => {
+            Ok(Some(mut line)) = stdin.next_line() => {
                 if line.len() == 0 {
                     //formatting for error prompt
                     let s = tokio::spawn(async move {
@@ -334,21 +334,61 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     let char_index = 0;
                     for c in line.chars() {
                         if c == ':' && char_index == 0 {
-                        println!("\nc={c}:{char_index}");//detected command prompt
+                        println!("\ndetected command prompt");
+                        println!("\nc={c}:{char_index}");
                         //enter another mode
                         }
                         if c == '\\' && char_index == 0 {
-                        println!("\nc={c}:{char_index}");//detected command prompt
+                        println!("\ndetected command prompt");
+                        println!("\nc={c}:{char_index}");
                         //enter another mode
                         }
                     }
                 } else {
 
-                if let Err(e) = swarm
-                    .behaviour_mut().gossipsub
-                    //SEND
-                    .publish(topic.clone(), line.as_bytes()) { error!("{e}"); }
-                }
+                    //detect compose/send command
+                    let mut char_index = 0;
+                    for c in line.chars() {
+                        if c == ':' && char_index == 0 {
+                            println!("\nc={c}:{char_index}");
+                            char_index += 1;
+                        } else
+
+
+                        if c == 'c' && char_index == 1 {
+                            //compose command
+                            println!("\ndetected command prompt");
+                            println!("\nc={c}:{char_index}");
+                            char_index += 1;
+                            let line = "detected compose prompt".to_string();
+                        } else
+
+
+
+                        if c == 's' && char_index == 1 {
+                            //send command
+                            println!("\ndetected command prompt");
+                            println!("\nc={c}:{char_index}");
+                            char_index += 1;
+                            let line = String::from("detected compose prompt");
+                        } else {
+
+                            if let Err(e) = swarm
+                                .behaviour_mut().gossipsub
+                                //SEND
+                                .publish(topic.clone(), line.as_bytes()) { error!("{e}"); }
+
+                            }
+
+                        }
+
+                    }
+
+                //if let Err(e) = swarm
+                //    .behaviour_mut().gossipsub
+                //    //SEND
+                //    .publish(topic.clone(), line.as_bytes()) { error!("{e}"); }
+                //}
             }
             }
             event = swarm.select_next_some() => match event {
