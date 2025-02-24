@@ -40,10 +40,10 @@ use libp2p::{
     swarm::{NetworkBehaviour, SwarmEvent},
     tcp, yamux,
 };
-use tokio::{io, io::AsyncBufReadExt, select};
-use tracing_subscriber::EnvFilter;
 use std::env;
+use tokio::{io, io::AsyncBufReadExt, select};
 use tracing_subscriber::fmt::format;
+use tracing_subscriber::EnvFilter;
 
 use tracing_subscriber::fmt::format::Format;
 
@@ -94,6 +94,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             yamux::Config::default,
         )?
         .with_quic()
+        //a behaviour
         .with_behaviour(|key| {
             // To content-address message, we can take the hash of message and use it as an ID.
             let message_id_fn = |message: &gossipsub::Message| {
@@ -104,12 +105,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
             // Set a custom gossipsub configuration
             let gossipsub_config = gossipsub::ConfigBuilder::default()
-                .heartbeat_interval(Duration::from_secs(1)) // This is set to aid debugging by not cluttering the log space
-                //REF https://docs.rs/gossipsub/latest/gossipsub/enum.ValidationMode.html
+                // This is set to aid debugging by not cluttering the log space
+                .heartbeat_interval(Duration::from_secs(1))
+                // REF https://docs.rs/gossipsub/latest/gossipsub/enum.ValidationMode.html
                 .validation_mode(gossipsub::ValidationMode::Permissive)
-                .message_id_fn(message_id_fn) // content-address messages. No two messages of the same content will be propagated.
+                // content-address messages. No two messages of the same content will be propagated.
+                .message_id_fn(message_id_fn)
                 .build()
-                .map_err(|msg| io::Error::new(io::ErrorKind::Other, msg))?; // Temporary hack because `build` does not return a proper `std::error::Error`.
+                // Temporary hack because `build` does not return a proper `std::error::Error`.
+                .map_err(|msg| io::Error::new(io::ErrorKind::Other, msg))?;
 
             // build a gossipsub network behaviour
             let gossipsub = gossipsub::Behaviour::new(
@@ -119,8 +123,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
             let mdns =
                 mdns::tokio::Behaviour::new(mdns::Config::default(), key.public().to_peer_id())?;
+
             Ok(MyBehaviour { gossipsub, mdns })
-        })?
+        })? // end of behaviour
         .build();
 
     // Create a Gossipsub topic
@@ -146,19 +151,22 @@ async fn main() -> Result<(), Box<dyn Error>> {
     );
 
     //TODO add cli topic arg
+    //commit.id is padded to fit sha256/nostr privkey context
     let topic = gossipsub::IdentTopic::new(format!("{:0>64}", commit.id()));
     println!("TOPIC> {:0>64}", topic);
+
     // subscribes to our topic
+    // TODO check if commit.id HEAD changed within the loop
     swarm.behaviour_mut().gossipsub.subscribe(&topic)?;
-
-    // Read full lines from stdin
-    let mut stdin = io::BufReader::new(io::stdin()).lines();
-
     // Listen on all interfaces and whatever port the OS assigns
     swarm.listen_on("/ip4/0.0.0.0/udp/0/quic-v1".parse()?)?;
     swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
 
-    info!("Enter messages via STDIN and they will be sent to connected peers using Gossipsub");
+    // Read full lines from stdin
+    // https://doc.rust-lang.org/std/io/trait.BufRead.html#method.read_line
+    // https://doc.rust-lang.org/std/io/fn.stdin.html#examples
+    let mut stdin = io::BufReader::new(io::stdin()).lines();
+    println!("Enter messages via STDIN");
 
     let mut mempool_url = "https://mempool.space/api/blocks/tip/height";
     let sweetsats_url = "https://mempool.sweetsats.io/api/blocks/tip/height";
@@ -262,7 +270,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let ureq_test = tokio::spawn(async move {
             match ureq::get(mempool_url).call() {
                 Ok(response) => {
-
                     debug!("{response:?}");
                 }
                 Err(UreqError::Status(code, response)) => {
@@ -358,12 +365,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
             }
             event = swarm.select_next_some() => match event {
+                //NOTE MyBehaviour
                 SwarmEvent::Behaviour(MyBehaviourEvent::Mdns(mdns::Event::Discovered(list))) => {
                     for (peer_id, _multiaddr) in list {
                         debug!("mDNS discovered a new peer: {peer_id}");
                         swarm.behaviour_mut().gossipsub.add_explicit_peer(&peer_id);
                     }
                 },
+                //NOTE MyBehaviour
                 SwarmEvent::Behaviour(MyBehaviourEvent::Mdns(mdns::Event::Expired(list))) => {
                     for (peer_id, _multiaddr) in list {
                         debug!("mDNS discover peer has expired: {peer_id}");
@@ -373,6 +382,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 //we recieve message
                 //and print immediately
                 //no formatting
+                //NOTE MyBehaviour
                 SwarmEvent::Behaviour(MyBehaviourEvent::Gossipsub(gossipsub::Event::Message {
                     propagation_source: peer_id,
                     message_id: id,
@@ -405,27 +415,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         i.await.unwrap();
                     }
                 },
+                //NOTE NOT! MyBehaviour
+                SwarmEvent::ConnectionEstablished { peer_id, connection_id, endpoint, .. } => {
+                    debug!("\nSwarmEvent::NewExtrernalAddrOfPeer:{peer_id}/{connection_id}\n{endpoint:?}");
+                }
+                //NOTE NOT! MyBehaviour
                 SwarmEvent::NewListenAddr { address, .. } => {
-                    let s = tokio::spawn(async move {
-                        let agent: Agent = ureq::AgentBuilder::new()
-                            .timeout_read(Duration::from_secs(1))
-                            .timeout_write(Duration::from_secs(1))
-                            .build();
-                        let body: String = agent.get(mempool_url)
-                            .call().expect("")
-                            .into_string().expect("");
 
                         print!(
-                            "\n{address:?}/{body}> ",
-                        )
-                    });
+                            "\nGNOSTR{address}> ",
+                        );
 
-                    let mut handles = Vec::new();
-                    handles.push(s);
-
-                    for i in handles {
-                        i.await.unwrap();
-                    }
 
                     //info!("Local node is listening on {address}");
                 }
@@ -439,8 +439,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
                             .call().expect("")
                             .into_string().expect("");
 
-                        print!(
-                            "\n{body}> ",
+                        debug!(
+                            "\n443:{body}> ",
                         )
                     });
 
