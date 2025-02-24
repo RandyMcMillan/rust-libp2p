@@ -918,7 +918,7 @@ dependencies = [
 
 [[package]]
 name = "chat-example"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "async-trait",
  "env_logger 0.10.2",
