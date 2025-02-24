@@ -109,8 +109,8 @@ autonatv2-server:
 browser-webrtc-example:
     cargo run --bin   browser-webrtc-example
 
-chat-example:
-    cargo run --bin   chat-example
+@chat-example *args='':
+    bash -c 'while (( "$#" )); do cargo run --bin chat-example -- $1; shift; done' -- "$@"
 
 install-chat-example:
     @just exec "cargo install --bin chat-example --path examples/chat"
