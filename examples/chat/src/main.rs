@@ -404,7 +404,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
                         //immediately print a new prompt
                         print!(
-                            "\n{body}/GNOSTR> ",
+                            "\nGNOSTR/{body}> ",
                         )
                     });
 
