@@ -306,6 +306,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         select! {
             Ok(Some(mut line)) = stdin.next_line() => {
                 if line.len() == 0 {
+                    //print!("309:line.len()={}", line.len());
                     //formatting for error prompt
                     let s = tokio::spawn(async move {
                         let agent: Agent = ureq::AgentBuilder::new()
@@ -330,6 +331,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
                 } else {
                 if line.len() == 1 {
+                    //print!("334:line.len()={}", line.len());
 
                     let char_index = 0;
                     for c in line.chars() {
@@ -337,14 +339,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         println!("\ndetected command prompt");
                         println!("\nc={c}:{char_index}");
                         //enter another mode
-                        }
+                        } else
                         if c == '\\' && char_index == 0 {
                         println!("\ndetected command prompt");
                         println!("\nc={c}:{char_index}");
                         //enter another mode
-                        }
+                        } else {}
                     }
+                    //line = String::from("");
                 } else {
+                    //print!("350line.len()={}", line.len());
 
                     //detect compose/send command
                     let mut char_index = 0;
@@ -376,7 +380,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                             if let Err(e) = swarm
                                 .behaviour_mut().gossipsub
                                 //SEND
-                                .publish(topic.clone(), line.as_bytes()) { error!("{e}"); }
+                                .publish(topic.clone(), line.as_bytes()) { /*error!("{e}");*/ }
 
                             }
 
