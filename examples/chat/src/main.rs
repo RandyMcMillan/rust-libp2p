@@ -100,6 +100,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
             let message_id_fn = |message: &gossipsub::Message| {
                 let mut s = DefaultHasher::new();
                 message.data.hash(&mut s);
+                println!("message:\n{0:?}", message);
+                println!("message.data:\n{0:?}", message.data);
+                println!("message.source:\n{0:?}", message.source);
+                println!("message.source:\n{0:1?}", message.source);
+                println!("message.source:\n{0:2?}", message.source.unwrap());
+                println!("message.sequence_number:\n{0:?}", message.sequence_number);
+                println!("message.topic:\n{0:?}", message.topic);
+                println!("message.topic.hash:\n{0:0}", message.topic.clone());
+                //println!("{:?}", s);
                 gossipsub::MessageId::from(s.finish().to_string())
             };
 
