@@ -74,7 +74,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     if let Some(log_level) = args().nth(1) {
         Builder::from_env(Env::default().default_filter_or(log_level)).init();
     } else {
-        Builder::from_env(Env::default().default_filter_or("warn")).init();
+        Builder::from_env(Env::default().default_filter_or("none")).init();
     }
 
     trace!("Arguments:");
