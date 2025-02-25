@@ -22,18 +22,18 @@
 
 use std::{
     collections::hash_map::DefaultHasher,
-    error::Error,
+    error::Error as StdError,
     hash::{Hash, Hasher},
-    thread,
+    //thread,
     time::Duration,
 };
 
 use futures::stream::StreamExt;
-use git2::Config;
-use git2::ErrorCode;
+//use git2::Config;
+//use git2::ErrorCode;
 use git2::Repository;
 
-use ureq::{Agent, AgentBuilder, Error as UreqError};
+use ureq::{Agent, /*AgentBuilder, */ Error, Response};
 
 use libp2p::{
     gossipsub, mdns, noise,
@@ -41,11 +41,7 @@ use libp2p::{
     tcp, yamux,
 };
 use std::env;
-use tokio::{io, io::AsyncBufReadExt, select};
-use tracing_subscriber::fmt::format;
-use tracing_subscriber::EnvFilter;
-
-use tracing_subscriber::fmt::format::Format;
+use tokio::{io, io::AsyncBufReadExt, select, task};
 
 use env_logger::{Builder, Env};
 use log::{debug, error, info, trace, warn};
@@ -58,8 +54,43 @@ struct MyBehaviour {
     mdns: mdns::tokio::Behaviour,
 }
 
+fn get_blockheight() -> String {
+    let blockheight = String::from("000000");
+    blockheight
+}
+
+async fn fetch_data_async(url: String) -> Result<ureq::Response, ureq::Error> {
+    task::spawn_blocking(move || {
+        let response = ureq::get(&url).call();
+        response
+    })
+    .await
+    .unwrap() // Handle potential join errors
+}
+
+
+async fn async_prompt(mempool_url: String) -> String {
+
+    let s = tokio::spawn(async move {
+        let agent: Agent = ureq::AgentBuilder::new()
+            .timeout_read(Duration::from_secs(10))
+            .timeout_write(Duration::from_secs(10))
+            .build();
+        let body: String = agent
+            .get(&mempool_url)
+            .call()
+            .expect("")
+            .into_string()
+            .expect("mempool_url:body:into_string:fail!");
+
+        body
+    });
+
+        s.await.unwrap()
+}
+
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+async fn main() -> Result<(), Box<dyn StdError>> {
     //let _ = tracing_subscriber::fmt()
     //    .with_env_filter(EnvFilter::from_default_env())
     //    .try_init();
@@ -72,9 +103,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     if let Some(log_level) = args().nth(1) {
-        Builder::from_env(Env::default().default_filter_or(log_level + ",libp2p_gossipsub::behaviour=error")).init();
+        Builder::from_env(
+            Env::default().default_filter_or(log_level + ",libp2p_gossipsub::behaviour=error"),
+        )
+        .init();
     } else {
-        Builder::from_env(Env::default().default_filter_or("none,libp2p_gossipsub::behaviour=error")).init();
+        Builder::from_env(
+            Env::default().default_filter_or("none,libp2p_gossipsub::behaviour=error"),
+        )
+        .init();
     }
 
     trace!("Arguments:");
@@ -187,6 +224,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let sweetsats_url = "https://mempool.sweetsats.io/api/blocks/tip/height";
     let gob_sv_url = "https://bitcoin.gob.sv/api/blocks/tip/height";
 
+
+    //let mempool_response = fetch_data_async(mempool_url.to_string()).await;
+    //println!("{mempool_response:?}");
+    let mempool_response = async_prompt(mempool_url.to_string()).await;
+    println!("ASYNC_PROMPT/{mempool_response}>");
+
+
     let mut handles = Vec::new();
     let ureq_test = tokio::spawn(async move {
         match ureq::get(mempool_url).call() {
@@ -195,7 +239,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
                 debug!("{response:?}");
             }
-            Err(UreqError::Status(code, response)) => {
+            Err(Error::Status(code, response)) => {
                 debug!("{response:?}");
                 mempool_url = sweetsats_url;
                 //mempool_url = gob_sv_url;
@@ -219,7 +263,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
                 debug!("{response:?}");
             }
-            Err(UreqError::Status(code, response)) => {
+            Err(Error::Status(code, response)) => {
                 debug!("{response:?}");
                 //mempool_url = sweetsats_url;
                 mempool_url = gob_sv_url;
@@ -265,7 +309,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     /* it worked */
                     debug!("{response:?}");
                 }
-                Err(UreqError::Status(code, response)) => {
+                Err(Error::Status(code, response)) => {
                     debug!("{response:?}");
                     mempool_url = sweetsats_url;
                     //mempool_url = gob_sv_url;
@@ -287,7 +331,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 Ok(response) => {
                     debug!("{response:?}");
                 }
-                Err(UreqError::Status(code, response)) => {
+                Err(Error::Status(code, response)) => {
                     //debug!("{response:?}");
                     //mempool_url = sweetsats_url;
                     mempool_url = gob_sv_url;
