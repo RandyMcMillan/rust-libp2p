@@ -72,9 +72,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     if let Some(log_level) = args().nth(1) {
-        Builder::from_env(Env::default().default_filter_or(log_level)).init();
+        Builder::from_env(Env::default().default_filter_or(log_level + ",libp2p_gossipsub::behaviour=error")).init();
     } else {
-        Builder::from_env(Env::default().default_filter_or("none")).init();
+        Builder::from_env(Env::default().default_filter_or("none,libp2p_gossipsub::behaviour=error")).init();
     }
 
     trace!("Arguments:");
@@ -100,20 +100,20 @@ async fn main() -> Result<(), Box<dyn Error>> {
             let message_id_fn = |message: &gossipsub::Message| {
                 let mut s = DefaultHasher::new();
                 message.data.hash(&mut s);
-                info!("message:\n{0:?}", message);
-                info!("message.data:\n{0:?}", message.data);
-                info!("message.source:\n{0:?}", message.source);
-                info!("message.source:\n{0:1?}", message.source);
-                info!("message.source.peer_id:\n{0:2?}", message.source.unwrap());
+                debug!("message:\n{0:?}", message);
+                debug!("message.data:\n{0:?}", message.data);
+                debug!("message.source:\n{0:?}", message.source);
+                debug!("message.source:\n{0:1?}", message.source);
+                debug!("message.source.peer_id:\n{0:2?}", message.source.unwrap());
                 //TODO https://docs.rs/gossipsub/latest/gossipsub/trait.DataTransform.html
                 //send Recieved message back
-                info!(
+                debug!(
                     "message.source.peer_id:\n{0:3}",
                     message.source.unwrap().to_string()
                 );
-                info!("message.sequence_number:\n{0:?}", message.sequence_number);
-                info!("message.topic:\n{0:?}", message.topic);
-                info!("message.topic.hash:\n{0:0}", message.topic.clone());
+                debug!("message.sequence_number:\n{0:?}", message.sequence_number);
+                debug!("message.topic:\n{0:?}", message.topic);
+                debug!("message.topic.hash:\n{0:0}", message.topic.clone());
                 //println!("{:?}", s);
                 gossipsub::MessageId::from(s.finish().to_string())
             };
