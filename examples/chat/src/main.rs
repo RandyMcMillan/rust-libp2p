@@ -407,7 +407,7 @@ async fn main() -> Result<(), Box<dyn StdError>> {
                           "\n{} <{peer_id}", String::from_utf8_lossy(&message.data),
                       );
 
-                      print!("\n410:GNOSTR/{prompt}> ");
+                      print!("\nGNOSTR/{prompt}> ");
 
                 },
                 //NOTE NOT! MyBehaviour
