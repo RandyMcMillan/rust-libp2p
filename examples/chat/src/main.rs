@@ -224,11 +224,13 @@ async fn main() -> Result<(), Box<dyn StdError>> {
     let sweetsats_url = "https://mempool.sweetsats.io/api/blocks/tip/height";
     let gob_sv_url = "https://bitcoin.gob.sv/api/blocks/tip/height";
 
+    let mempool_url_vec =
+        vec!["https://mempool.space/api/blocks/tip/height",
+             "https://mempool.sweetsats.io/api/blocks/tip/height",
+             "https://bitcoin.gob.sv/api/blocks/tip/height"];
 
-    //let mempool_response = fetch_data_async(mempool_url.to_string()).await;
-    //println!("{mempool_response:?}");
-    let mempool_response = async_prompt(mempool_url.to_string()).await;
-    println!("ASYNC_PROMPT/{mempool_response}>");
+    let prompt = async_prompt(mempool_url.to_string()).await;
+    println!("A_GNOSTR/{prompt}> ");
 
 
     let mut handles = Vec::new();
@@ -302,76 +304,13 @@ async fn main() -> Result<(), Box<dyn StdError>> {
     }
     // Kick it off
     loop {
-        let mut handles = Vec::new();
-        let ureq_test = tokio::spawn(async move {
-            match ureq::get(mempool_url).call() {
-                Ok(response) => {
-                    /* it worked */
-                    debug!("{response:?}");
-                }
-                Err(Error::Status(code, response)) => {
-                    debug!("{response:?}");
-                    mempool_url = sweetsats_url;
-                    //mempool_url = gob_sv_url;
-                    /* the server returned an unexpected status
-                    code (such as 400, 500 etc) */
-                    error!("{mempool_url:?}/{code:?}/{response:?}");
-                }
-                Err(_) => { /* some kind of io/transport error */ }
-            }
-        });
-        handles.push(ureq_test);
-        for i in handles {
-            i.await.unwrap();
-        }
-
-        let mut handles = Vec::new();
-        let ureq_test = tokio::spawn(async move {
-            match ureq::get(mempool_url).call() {
-                Ok(response) => {
-                    debug!("{response:?}");
-                }
-                Err(Error::Status(code, response)) => {
-                    //debug!("{response:?}");
-                    //mempool_url = sweetsats_url;
-                    mempool_url = gob_sv_url;
-                    /* the server returned an unexpected status
-                    code (such as 400, 500 etc) */
-                    error!("{mempool_url:?}/{code:?}/{response:?}");
-                }
-                Err(_) => { /* some kind of io/transport error */ }
-            }
-        });
-        handles.push(ureq_test);
-        for i in handles {
-            i.await.unwrap();
-        }
+    let prompt = async_prompt(mempool_url.to_string()).await;
+    //print!("308:GNOSTR/{prompt}>");
 
         select! {
             Ok(Some(mut line)) = stdin.next_line() => {
                 if line.len() == 0 {
-                    //print!("309:line.len()={}", line.len());
-                    //formatting for error prompt
-                    let s = tokio::spawn(async move {
-                        let agent: Agent = ureq::AgentBuilder::new()
-                            .timeout_read(Duration::from_secs(1))
-                            .timeout_write(Duration::from_secs(1))
-                            .build();
-                        let body: String = agent
-                            .get(mempool_url)
-                            .call()
-                            .expect("")
-                            .into_string()
-                            .expect("");
-
-                        println!("GNOSTR/{body}> print help message",);
-                    });
-                    let mut handles = Vec::new();
-                    handles.push(s);
-
-                    for i in handles {
-                        i.await.unwrap(); //write to term
-                    }
+                        print!("\nGNOSTR/{prompt}> print help message");
 
                 } else {
                 if line.len() == 1 {
@@ -465,30 +404,11 @@ async fn main() -> Result<(), Box<dyn StdError>> {
                 })) => {
 
                       print!(
-                          "{} <{peer_id}", String::from_utf8_lossy(&message.data),
+                          "\n{} <{peer_id}", String::from_utf8_lossy(&message.data),
                       );
 
-                    let s = tokio::spawn(async move {
-                        let agent: Agent = ureq::AgentBuilder::new()
-                            .timeout_read(Duration::from_secs(1))
-                            .timeout_write(Duration::from_secs(1))
-                            .build();
-                        let body: String = agent.get(mempool_url)
-                            .call().expect("")
-                            .into_string().expect("");
+                      print!("\n410:GNOSTR/{prompt}> ");
 
-                        //immediately print a new prompt
-                        print!(
-                            "\nGNOSTR/{body}> ",
-                        )
-                    });
-
-                    let mut handles = Vec::new();
-                    handles.push(s);
-
-                    for i in handles {
-                        i.await.unwrap();
-                    }
                 },
                 //NOTE NOT! MyBehaviour
                 SwarmEvent::ConnectionEstablished { peer_id, connection_id, endpoint, .. } => {
@@ -497,34 +417,11 @@ async fn main() -> Result<(), Box<dyn StdError>> {
                 //NOTE NOT! MyBehaviour
                 SwarmEvent::NewListenAddr { address, .. } => {
 
-                        print!(
-                            "\nGNOSTR{address}> ",
-                        );
+                        print!("\n<{address}");
 
-
-                    //info!("Local node is listening on {address}");
                 }
                 _ => {
-                    let s = tokio::spawn(async move {
-                        let agent: Agent = ureq::AgentBuilder::new()
-                            .timeout_read(Duration::from_secs(1))
-                            .timeout_write(Duration::from_secs(1))
-                            .build();
-                        let body: String = agent.get(mempool_url)
-                            .call().expect("")
-                            .into_string().expect("");
-
-                        debug!(
-                            "\n443:{body}> ",
-                        )
-                    });
-
-                    let mut handles = Vec::new();
-                    handles.push(s);
-
-                    for i in handles {
-                        i.await.unwrap();
-                    }
+                        debug!("424:GNOSTR/{prompt}> ");
                 }
             }
         }
