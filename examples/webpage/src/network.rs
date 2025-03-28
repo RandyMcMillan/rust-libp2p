@@ -299,10 +299,10 @@ impl EventLoop {
             )) => {}
             SwarmEvent::NewListenAddr { address, .. } => {
                 let local_peer_id = *self.swarm.local_peer_id();
-                eprintln!(
-                    "Local node is listening on {:?}",
-                    address.with(Protocol::P2p(local_peer_id))
-                );
+                //eprintln!(
+                //    "Local node is listening on {:?}",
+                //    address.with(Protocol::P2p(local_peer_id))
+                //);
             }
             SwarmEvent::IncomingConnection { .. } => {}
             SwarmEvent::ConnectionEstablished {
