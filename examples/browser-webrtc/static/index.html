@@ -12,13 +12,9 @@
             <h1>Rust Libp2p Demo!</h1>
         </div>
         <a href="/main.html"> Link To main.html</a>
-        <script type="module" defer>
-            import init, { run } from "./browser_webrtc_example.js"
-            await init();
-            run("__LIBP2P_ENDPOINT__");
-        </script>
         <script type="module" >
-            import init, { run } from "./main.js"
+            import { init } from "./main.js"
+            import { run } from "./main.js"
             await init();
             run("__LIBP2P_ENDPOINT__");
         </script>

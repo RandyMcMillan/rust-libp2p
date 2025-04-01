@@ -12,7 +12,6 @@ use web_sys::{Document, HtmlElement};
 mod web_sys_objects;
 use web_sys_objects::*;
 
-
 #[wasm_bindgen]
 extern "C" {
     fn alert(s: &str);

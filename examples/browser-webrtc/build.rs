@@ -1,8 +1,11 @@
+use regex::Regex;
 use std::fs;
 use std::path::Path;
-use regex::Regex;
 
-fn generate_web_sys_objects(js_folder: &str, output_file: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn generate_web_sys_objects(
+    js_folder: &str,
+    output_file: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut rust_code = String::new();
     rust_code.push_str("// Generated web-sys objects\n");
     rust_code.push_str("use wasm_bindgen::prelude::*;\n");
@@ -23,10 +26,7 @@ fn generate_web_sys_objects(js_folder: &str, output_file: &str) -> Result<(), Bo
                 if !object_name.is_empty() && !js_object.is_empty() {
                     let rust_object = js_object.replace(".", "::");
 
-                    rust_code.push_str(&format!(
-                        "#[wasm_bindgen(js_name = {})]\n",
-                        js_object
-                    ));
+                    rust_code.push_str(&format!("#[wasm_bindgen(js_name = {})]\n", js_object));
                     rust_code.push_str(&format!(
                         "extern \"C\" {{\n    static mut {}: {};\n}}\n\n",
                         object_name, rust_object
