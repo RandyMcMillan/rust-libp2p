@@ -18,6 +18,7 @@ members = [
     "examples/rendezvous",
     "examples/stream",
     "examples/upnp",
+    "examples/webpage",
     "hole-punching-tests",
     "identity",
     "interop-tests",
@@ -65,7 +66,7 @@ members = [
     "transports/websocket-websys",
     "transports/websocket",
     "transports/webtransport-websys",
-    "wasm-tests/webtransport-tests",
+    "wasm-tests/webtransport-tests", "examples/webpage",
 ]
 resolver = "2"
 

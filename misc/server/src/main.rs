@@ -3,13 +3,16 @@ use std::{error::Error, path::PathBuf, str::FromStr};
 use base64::Engine;
 use clap::Parser;
 use futures::stream::StreamExt;
+use std::net::Ipv4Addr;
+
 use libp2p::{
+    core::{multiaddr::Protocol, Multiaddr},
     identify, identity,
     identity::PeerId,
     kad,
     metrics::{Metrics, Recorder},
-    noise,
-    swarm::SwarmEvent,
+    noise, ping, relay,
+    swarm::{NetworkBehaviour, SwarmEvent},
     tcp, yamux,
 };
 use prometheus_client::{metrics::info::Info, registry::Registry};
@@ -24,7 +27,7 @@ mod http_service;
 #[clap(name = "libp2p server", about = "A rust-libp2p server binary.")]
 struct Opts {
     /// Path to IPFS config file.
-    #[clap(long)]
+    #[clap(long, short, default_value = "./config.json")]
     config: PathBuf,
 
     /// Metric endpoint path.
@@ -32,12 +35,27 @@ struct Opts {
     metrics_path: String,
 
     /// Whether to run the libp2p Kademlia protocol and join the IPFS DHT.
-    #[clap(long)]
+    #[clap(long, short = 'k', default_value = "false")]
     enable_kademlia: bool,
 
     /// Whether to run the libp2p Autonat protocol.
-    #[clap(long)]
+    #[clap(long, short = 'a', default_value = "false")]
     enable_autonat: bool,
+
+    /// Fixed value to generate deterministic peer id
+    #[clap(long, short, default_value = "0")]
+    secret_key_seed: Option<u8>,
+
+    /// Fixed value to generate deterministic peer id
+    #[clap(long, short, default_value = "0")]
+    port: Option<u16>,
+}
+
+fn generate_ed25519(secret_key_seed: u8) -> identity::Keypair {
+    let mut bytes = [0u8; 32];
+    bytes[0] = secret_key_seed;
+
+    identity::Keypair::ed25519_from_bytes(bytes).expect("only errors on wrong length")
 }
 
 #[tokio::main]
@@ -48,22 +66,24 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let opt = Opts::parse();
 
-    let config = Zeroizing::new(config::Config::from_file(opt.config.as_path())?);
+    let mut config = Zeroizing::new(config::Config::from_file(opt.config.as_path())?);
 
     let mut metric_registry = Registry::default();
 
     let local_keypair = {
-        let keypair = identity::Keypair::from_protobuf_encoding(&Zeroizing::new(
-            base64::engine::general_purpose::STANDARD
-                .decode(config.identity.priv_key.as_bytes())?,
-        ))?;
+        let keypair: identity::Keypair = generate_ed25519(opt.secret_key_seed.unwrap_or(0));
+        let keypai_r: identity::Keypair =
+            identity::Keypair::from_protobuf_encoding(&Zeroizing::new(
+                base64::engine::general_purpose::STANDARD
+                    .decode(config.identity.priv_key.as_bytes())?,
+            ))?;
 
-        let peer_id = keypair.public().into();
-        assert_eq!(
-            PeerId::from_str(&config.identity.peer_id)?,
-            peer_id,
-            "Expect peer id derived from private key and peer id retrieved from config to match."
-        );
+        let peer_id: PeerId = keypair.public().into();
+        //assert_eq!(
+        //    PeerId::from_str(&config.identity.peer_id)?,
+        //    peer_id,
+        //    "Expect peer id derived from private key and peer id retrieved from config to match."
+        //);
 
         keypair
     };
@@ -88,7 +108,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
     if config.addresses.swarm.is_empty() {
         tracing::warn!("No listen addresses configured");
     }
+
+    let sctp_address: Multiaddr = "/ip4/127.0.0.1/udt/sctp/0".parse().unwrap();
+    let components = sctp_address.iter().collect::<Vec<_>>();
+    assert_eq!(components[0], Protocol::Ip4(Ipv4Addr::new(127, 0, 0, 1)));
+    assert_eq!(components[1], Protocol::Udt);
+    assert_eq!(components[2], Protocol::Sctp(0));
+    config.addresses.append_announce.push(sctp_address);
+
     for address in &config.addresses.swarm {
+        tracing::info!("{}", address.clone());
         match swarm.listen_on(address.clone()) {
             Ok(_) => {}
             Err(e @ libp2p::TransportError::MultiaddrNotSupported(_)) => {

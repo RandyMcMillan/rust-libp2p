@@ -8,6 +8,9 @@ license = "MIT"
 [package.metadata.release]
 release = false
 
+[build-dependencies]
+regex = "1.11.1"
+
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
 tokio = { workspace = true, features = ["full"] }

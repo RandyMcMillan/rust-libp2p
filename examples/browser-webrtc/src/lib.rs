@@ -9,6 +9,20 @@ use libp2p_webrtc_websys as webrtc_websys;
 use wasm_bindgen::prelude::*;
 use web_sys::{Document, HtmlElement};
 
+mod web_sys_objects;
+use web_sys_objects::*;
+
+
+#[wasm_bindgen]
+extern "C" {
+    fn alert(s: &str);
+}
+
+#[wasm_bindgen]
+pub fn greet(name: &str) {
+    alert(&format!("Hello, {}!", name));
+}
+
 #[wasm_bindgen]
 pub async fn run(libp2p_endpoint: String) -> Result<(), JsError> {
     tracing_wasm::set_as_global_default();

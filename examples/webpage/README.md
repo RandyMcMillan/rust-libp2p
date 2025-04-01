@@ -40,17 +40,38 @@ The File Sharing application has the following architectural properties:
 To set up a simple file sharing scenario with a provider and a retriever, follow these steps:
 
 1. **Start a File Provider**: In one terminal, run the following command to start a file provider node:
+   
+```
+../../target/debug/webpage --listen-address /ip4/127.0.0.1/tcp/40837 --secret-key-seed 1 provide --path ../../.git/HEAD --name HEAD
+Local node is listening on "/ip4/127.0.0.1/tcp/40837/p2p/12D3KooWPjceQrSwdWXPyLLeABRXmuqt69Rg3sBYbU1Nft9HyQ6X"
+
+```
+   
+```
+../../target/debug/webpage --peer /ip4/127.0.0.1/tcp/40837/p2p/12D3KooWPjceQrSwdWXPyLLeABRXmuqt69Rg3sBYbU1Nft9HyQ6X get --name HEAD
+
+```
+   
+   
+   
+    `/Users/Shared/randymcmillan/.github/rust-libp2p/target/debug/webpage --listen-address /ip4/127.0.0.1/tcp/40837 --secret-key-seed 1 provide --path README.md --name README.md`
+Local node is listening on "/ip4/127.0.0.1/tcp/40837/p2p/12D3KooWPjceQrSwdWXPyLLeABRXmuqt69Rg3sBYbU1Nft9HyQ6X"
+
+
+$ ../../target/debug/webpage --peer /ip4/127.0.0.1/tcp/40837/p2p/12D3KooWPjceQrSwdWXPyLLeABRXmuqt69Rg3sBYbU1Nft9HyQ6X get --name README.md 
+
+
+   
    ```sh
-   cargo run -- --listen-address /ip4/127.0.0.1/tcp/40837 \
-             --secret-key-seed 1 \
-             provide \
-             --path <path-to-your-file> \
-             --name <name-for-others-to-find-your-file>
+   cargo run -- --listen-address /ip4/127.0.0.1/tcp/40837 --secret-key-seed 1 provide --path README.md --name README.md 
+
    ```
+   
    This command initiates a node that listens on the specified address and provides a file located at the specified path.
    The file is identified by the provided name, which allows other nodes to discover and retrieve it.
 
 2. **Start a File Retriever**: In another terminal, run the following command to start a file retriever node:
+   
    ```sh
    cargo run -- --peer /ip4/127.0.0.1/tcp/40837/p2p/12D3KooWPjceQrSwdWXPyLLeABRXmuqt69Rg3sBYbU1Nft9HyQ6X \
              get \

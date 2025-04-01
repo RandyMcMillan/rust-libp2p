@@ -3,7 +3,7 @@ use std::io::{self, BufRead, BufReader};
 use std::path::Path;
 
 fn main() -> io::Result<()> {
-    //let logs_heads_dir = Path::new(".git/logs/refs/heads");
+    //let current_dir = Path::new(".git/logs/refs/heads");
 
 
     let mut current_dir = std::env::current_dir()?;
@@ -11,6 +11,7 @@ fn main() -> io::Result<()> {
     loop {
         let git_dir = current_dir.join(".git/logs/refs/heads");
 
+        println!("git_dir={}", git_dir.display());
         if git_dir.exists() && git_dir.is_dir() {
             process_logs_refs(&git_dir)?;
             break;
@@ -40,6 +41,27 @@ fn main() -> io::Result<()> {
                     if let Err(e) = process_log_file(&path) {
                         eprintln!("Error processing {:?}: {}", path, e);
                     }
+                } else {
+                current_dir = std::env::current_dir()?;
+                println!("{:?}", current_dir);
+                if let Ok(entries) = fs::read_dir(current_dir) {
+                    for entry in entries {
+                        if let Ok(entry) = entry {
+                            let path = entry.path();
+
+                            if path.is_file() {
+                                if let Err(e) = process_log_file(&path) {
+                                    eprintln!("Error processing {:?}: {}", path, e);
+                                }
+                            } else {
+
+
+                            }
+                        }
+                    }
+                }
+
+
                 }
             }
         }
@@ -55,6 +77,7 @@ fn process_logs_refs(logs_ref_dir: &Path) -> io::Result<()> {
             if let Ok(entry) = entry {
                 let path = entry.path();
 
+                println!("{}", path.display());
                 if path.is_file() {
                     if let Err(e) = process_log_file(&path) {
                         eprintln!("Error processing {:?}: {}", path, e);
@@ -77,7 +100,8 @@ fn process_log_file(file_path: &Path) -> io::Result<()> {
     for line_result in reader.lines() {
         let line = line_result?;
         let log_entry = parse_log_entry(&line);
-        println!("{:?}", log_entry);
+
+        //println!("{:?}", log_entry);
     }
     println!();
     Ok(())

@@ -13,10 +13,10 @@ license = "MIT"
 [dependencies]
 base64 = "0.22"
 clap = { version = "4.5.6", features = ["derive"] }
-futures = { workspace = true }
+futures = { version = "0.3.30" }
 futures-timer = "3"
 axum = "0.7"
-libp2p = { workspace = true, features = [
+libp2p = { version = "0.54.0", features = [
     "autonat",
     "dns",
     "tokio",
@@ -27,20 +27,37 @@ libp2p = { workspace = true, features = [
     "kad",
     "ping",
     "relay",
+    "macros",
     "metrics",
     "rsa",
+    "tcp",
+    "tokio",
     "macros",
     "quic",
     "websocket",
 ] }
-prometheus-client = { workspace = true }
+libp2p-identity = { version = "0.2.10", features = ["ecdsa", "ed25519", "peerid", "rand", "rsa", "secp256k1", "serde"] }
+
+prometheus-client = { version = "0.22.0" }
 serde = "1.0.203"
 serde_derive = "1.0.125"
 serde_json = "1.0"
-tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
-tracing = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["env-filter"] }
+tokio = { version = "1.38", features = ["rt-multi-thread", "macros", "full"] }
+tracing = { version = "0.1.37" }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 zeroize = "1"
 
+##ipfs website
+anyhow = "1"
+ipfs-api = "0.17.0"
+#rust-ipfs = "0.11.18"
+
+
 [lints]
-workspace = true
+rust.unreachable_pub = "warn"
+clippy.used_underscore_binding = "warn"
+clippy.pedantic = { level = "allow", priority = -1 }
+clippy.type_complexity = "allow"
+clippy.unnecessary_wraps = "warn"
+clippy.manual_let_else = "warn"
+clippy.dbg_macro = "warn"
