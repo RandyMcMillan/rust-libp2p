@@ -13,9 +13,10 @@
         </div>
         <a href="/index.html"> Link To index.html</a>
         <script type="module" defer>
-            import init, { run } from "./main.js"
-            await init();
-            run("__LIBP2P_ENDPOINT__");
+            import { init } from "./init.js"
+            import { main } from "./main.js"
+            await init();//shared init() function
+            main("__LIBP2P_ENDPOINT__");
         </script>
     </body>
 </html>

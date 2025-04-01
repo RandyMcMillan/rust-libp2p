@@ -1,5 +1,5 @@
-export function main(){
-    let message = "main.js:main";
+export function index(){
+    let message = "index.js:index";
     console.log(message);
     let res = app("app("+message+")");
     console.log(res);
