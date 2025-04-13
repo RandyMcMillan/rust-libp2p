@@ -152,7 +152,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 #[clap(name = "libp2p file sharing example")]
 struct Opt {
     /// Fixed value to generate deterministic peer ID.
-    #[clap(long)]
+    #[clap(long, default_value = "0")]
     secret_key_seed: Option<u8>,
 
     #[clap(long)]
