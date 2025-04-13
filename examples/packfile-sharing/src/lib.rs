@@ -3,7 +3,7 @@ use std::io::{self, BufReader, Read, Seek, SeekFrom, Write};
 use std::path::Path;
 use std::str; // Import str for string conversion
 
-fn read_packfile(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+pub fn read_packfile(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let file = File::open(path)?;
     let mut reader = BufReader::new(file);
 
@@ -38,7 +38,7 @@ fn read_packfile(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn pack_repository(repo_path: &Path, packfile_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+pub fn pack_repository(repo_path: &Path, packfile_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let mut packfile = File::create(packfile_path)?;
     let mut entries = Vec::new();
     let mut data_offset = 4;
@@ -83,7 +83,7 @@ fn pack_repository(repo_path: &Path, packfile_path: &Path) -> Result<(), Box<dyn
     Ok(())
 }
 
-fn try_read_packfile(packfile_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+pub fn try_read_packfile(packfile_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
 //fn try_read_packfile(packfile_path: &Path) -> io::Result<()> {
     let file = File::open(packfile_path)?;
     let mut reader = BufReader::new(file);

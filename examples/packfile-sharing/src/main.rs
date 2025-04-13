@@ -10,6 +10,7 @@ use tokio::io;
 use std::path::Path;
 use libp2p::swarm::{NetworkBehaviour, Swarm, SwarmEvent};
 use packfile_sharing::*;
+use packfile_sharing::{try_read_packfile, read_packfile, pack_repository};
 
 #[derive(NetworkBehaviour)]
 struct MyBehaviour {
@@ -34,13 +35,37 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .with_env_filter(EnvFilter::from_default_env())
         .try_init();
 
+    let repo_path = Path::new("./example_repo");
+    let packfile_path = Path::new("repo.pack");
+
+    if repo_path.exists() {
+        fs::remove_dir_all(repo_path).await?;
+        println!("./example_repo removed.");
+    } else {
+        println!("./example_repo did not exist.");
+    }
+
+    fs::create_dir_all(repo_path).await?;
+    fs::write(repo_path.join("file2.txt"), &"File 2 content").await?;
+
+    pack_repository(repo_path, packfile_path).expect("");
+    read_packfile(packfile_path).expect("");
+    try_read_packfile(packfile_path).expect("");
+
+    fs::write(repo_path.join("file1.txt"), b"File 1 content").await?;
+    fs::write(repo_path.join("file2.bin"), &[1, 2, 3, 4, 5]).await?;
+
+    read_packfile(packfile_path).expect("");
+    try_read_packfile(packfile_path).expect("");
+
+
     let opt = Opt::parse();
 
 
-    let packfile_path = Path::new("./repo.pack");
+    //let packfile_path = Path::new("./repo.pack");
 
     // Create a dummy packfile for testing
-    fs::write(packfile_path, b"This is a dummy packfile.").await?;
+    //fs::write(packfile_path, b"This is a dummy packfile.").await?;
 
 
 
