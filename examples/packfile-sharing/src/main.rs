@@ -29,12 +29,7 @@ async fn send_packfile_to_peers(
     Ok(())
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
-    let _ = tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
-        .try_init();
-
+async fn example_repo() -> Result<(), Box<dyn Error>> {
     let repo_path = Path::new("./example_repo");
     let packfile_path = Path::new("repo.pack");
 
@@ -58,9 +53,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
     read_packfile(packfile_path).expect("");
     try_read_packfile(packfile_path).expect("");
 
+    Ok(())
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .try_init();
 
     let opt = Opt::parse();
-
+    example_repo().await;
 
     //let packfile_path = Path::new("./repo.pack");
 
