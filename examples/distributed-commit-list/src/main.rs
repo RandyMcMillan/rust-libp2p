@@ -132,11 +132,39 @@ fn get_commit_diff_as_string(repo: &Repository, commit_id: Oid) -> Result<String
         true
     })?;
 
-
     let diff_string = String::from_utf8(buf);
 
     // Return the successful result.
     Ok(diff_string.expect(""))
+}
+
+fn get_commit_diff_as_bytes(repo: &Repository, commit_id: Oid) -> Result<Vec<u8>, git2::Error> {
+    let commit = repo.find_commit(commit_id)?;
+
+    // Get the tree of the current commit
+    let tree = commit.tree()?;
+
+    // Get the tree of the first parent commit (if it exists)
+    let parent_tree = if commit.parent_count() > 0 {
+        Some(commit.parent(0)?.tree()?)
+    } else {
+        None
+    };
+
+    // Create a diff between the parent tree and the current tree
+    let diff = repo.diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), None)?;
+
+    // Create a buffer to write the diff to
+    let mut buf = Vec::new();
+
+    // Use Diff::print to write the diff content to the buffer
+    diff.print(DiffFormat::Patch, |_, _, line| {
+        buf.extend_from_slice(line.content());
+        true
+    })?;
+
+    // Return the buffer containing the diff bytes
+    Ok(buf)
 }
 
 #[tokio::main]
@@ -714,23 +742,21 @@ async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<
         //TODO construct nostr event
         //commit_privkey
         let commit_privkey: String = String::from(format!("{:0>64}", &commit.id().clone()));
-        log::info!("commit_privkey={}", commit_privkey);
+        log::info!("commit_privkey=\n{}", commit_privkey);
 
         //commit.id
         //we want to broadcast as provider for the actual commit.id()
-        log::info!("&commit.id={}", &commit.id());
+        log::info!("&commit.id=\n{}", &commit.id());
 
         let key = kad::RecordKey::new(&format!("{}", &commit.id()));
 
         //push commit key and commit content as value
         //let value = Vec::from(commit.message_bytes().clone());
         let value = Vec::from(commit.message_bytes());
-        tracing::debug!("{:?}", value.clone());
+        tracing::debug!("value={:?}", value.clone());
 
         let repo_path = "."; // Path to your Git repository
         let repo = Repository::discover(repo_path).expect("Failed to open repository");
-        let diff = get_commit_diff_as_string(&repo, commit.id());
-        tracing::info!("{:?}", diff?);
 
         //let commit_id = "your_commit_hash_here"; // Replace with a valid commit hash
         let message_bytes = get_commit_message_bytes(&repo, &commit.id().to_string())
@@ -738,7 +764,7 @@ async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<
 
         match String::from_utf8(message_bytes) {
             Ok(message) => {
-                println!("Decoded commit message:\n{}", message);
+                tracing::info!("message:\n{}", message);
             }
             Err(e) => {
                 eprintln!("Failed to decode commit message: {}", e);
@@ -746,6 +772,10 @@ async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<
                 eprintln!("Invalid bytes: {:?}", e.as_bytes());
             }
         }
+
+        let diff = get_commit_diff_as_string(&repo, commit.id());
+        tracing::debug!("diff={:?}", diff?);
+        //let diff_as_bytes = get_commit_diff_as_bytes(&repo, commit.id())?;
 
         let record = kad::Record {
             key,
