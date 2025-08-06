@@ -9,7 +9,6 @@ members = [
     "examples/distributed-key-value-store",
     "examples/distributed-commit-list",
     "examples/file-sharing",
-    "examples/gnostr-webrtc",
     "examples/identify",
     "examples/ipfs-kad",
     "examples/ipfs-private",
