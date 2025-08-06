@@ -10,7 +10,7 @@ use futures::stream::StreamExt;
 use libp2p::StreamProtocol;
 use libp2p::{
     identify, kad,
-    kad::{store::MemoryStore, Mode},
+    kad::{store::MemoryStore, Mode, Record, RecordKey},
     mdns, noise, ping, rendezvous,
     swarm::{NetworkBehaviour, SwarmEvent},
     tcp, yamux,
@@ -167,6 +167,19 @@ fn get_commit_diff_as_bytes(repo: &Repository, commit_id: Oid) -> Result<Vec<u8>
     Ok(buf)
 }
 
+// A simple utility function to print a Kademlia record.
+fn print_record(record: Record) {
+    println!("--- Kademlia Record ---");
+    println!("Key: {:?}", record.key);
+    if let Ok(value) = String::from_utf8(record.value.clone()) {
+        println!("Value (as string): {}", value);
+    } else {
+        println!("Value (as bytes): {:?}", record.value);
+    }
+    println!("Publisher: {:?}", record.publisher);
+    println!("--- End Record ---");
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let _ = init_subscriber(Level::INFO);
@@ -178,7 +191,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
     //for arg in args.into() {
-    tracing::info!("args={:?}", args);
+    tracing::debug!("args={:?}", args);
     //}
     // Results in PeerID 12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN which is
     // used as the rendezvous point by the other peer examples.
@@ -296,10 +309,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 //match event
 
                     SwarmEvent::ConnectionEstablished { peer_id, .. } => {
-                        tracing::info!("Connected to {}", peer_id);
+                        tracing::trace!("Connected to {}", peer_id);
                     }
                     SwarmEvent::ConnectionClosed { peer_id, .. } => {
-                        tracing::info!("Disconnected from {}", peer_id);
+                        tracing::trace!("Disconnected from {}", peer_id);
                     }
                     SwarmEvent::Behaviour(BehaviourEvent::Rendezvous(
                         rendezvous::server::Event::PeerRegistered { peer, registration },
@@ -355,17 +368,25 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         //eprintln!("Failed to get providers: {err:?}");
                         log::info!("Failed to get providers: {err:?}");
                     }
-                    kad::QueryResult::GetRecord(Ok(
-                        kad::GetRecordOk::FoundRecord(kad::PeerRecord {
+                    kad::QueryResult::GetRecord(
+                        Ok(
+                        kad::GetRecordOk::FoundRecord(
+                            kad::PeerRecord {
                             record: kad::Record { key, value, .. },
                             ..
-                        })
-                    )) => {
-                        log::debug!(
-                            "{{\"commit\":{:?},\"diff\":{:?}}}",
+                        }
+                        )
+                        )
+                        ) => {
+                        //tracing::info!("{}",record);
+
+                        print!(
+                            "{{\"commit\":{:?},\"message\":{:?}}}",
                             std::str::from_utf8(key.as_ref()).unwrap(),
                             std::str::from_utf8(&value).unwrap(),
                         );
+
+
                     }
                     //kad::QueryResult::GetRecord(Ok(_)) => {}
                     kad::QueryResult::GetRecord(Err(err)) => {
@@ -383,7 +404,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         log::debug!("Failed to put record: {err:?}");
                     }
                     kad::QueryResult::StartProviding(Ok(kad::AddProviderOk { key })) => {
-                        log::info!(
+                        log::debug!(
                             "PUT_PROVIDER {:?}",
                             std::str::from_utf8(key.as_ref()).unwrap()
                         );
@@ -428,8 +449,13 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: Str
                     }
                 }
             };
-            kademlia.get_record(key.clone());
-            tracing::info!("kademlia.get_record({})", kademlia.get_record(key));
+            let query_id = kademlia.get_record(key.clone());
+            //print_record(record);
+            tracing::debug!(
+                "kademlia.get_record({})\n{}",
+                kademlia.get_record(key),
+                query_id
+            );
         }
         Some("GET_PROVIDERS") => {
             let key = {
@@ -515,7 +541,7 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: Str
             std::process::exit(0);
         }
         _ => {
-            tracing::info!("expected GET <commit_hash>, GET_PROVIDERS <commit_hash>, PUT <commit_hash> or PUT_PROVIDER <commit_hash>");
+            tracing::info!("\nGET, GET_PROVIDERS, PUT, PUT_PROVIDER <commit_hash>");
             eprint!("gnostr> ");
         }
     }
@@ -742,11 +768,11 @@ async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<
         //TODO construct nostr event
         //commit_privkey
         let commit_privkey: String = String::from(format!("{:0>64}", &commit.id().clone()));
-        log::info!("commit_privkey=\n{}", commit_privkey);
+        log::debug!("commit_privkey=\n{}", commit_privkey);
 
         //commit.id
         //we want to broadcast as provider for the actual commit.id()
-        log::info!("&commit.id=\n{}", &commit.id());
+        log::debug!("&commit.id=\n{}", &commit.id());
 
         let key = kad::RecordKey::new(&format!("{}", &commit.id()));
 
@@ -764,7 +790,7 @@ async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<
 
         match String::from_utf8(message_bytes) {
             Ok(message) => {
-                tracing::info!("message:\n{}", message);
+                tracing::debug!("message:\n{}", message);
             }
             Err(e) => {
                 eprintln!("Failed to decode commit message: {}", e);
