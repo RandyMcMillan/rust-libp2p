@@ -1,7 +1,9 @@
 use std::fs::{self, File};
-use std::io::{self, BufReader, Read, Seek, SeekFrom, Write};
+use std::io::{/*self, */ BufReader, Read, Seek, SeekFrom, Write};
 use std::path::Path;
 use std::str; // Import str for string conversion
+
+mod cli;
 
 pub fn read_packfile(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let file = File::open(path)?;
@@ -31,14 +33,20 @@ pub fn read_packfile(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
         // Attempt to convert the data to a UTF-8 string
         match str::from_utf8(&data) {
             Ok(commit_str) => println!("read_packfile: {}", commit_str),
-            Err(_) => println!("read_packfile: {:?} (Non-UTF-8)", &data[..10.min(data.len())]), //print the first 10 bytes if not utf8.
+            Err(_) => println!(
+                "read_packfile: {:?} (Non-UTF-8)",
+                &data[..10.min(data.len())]
+            ), //print the first 10 bytes if not utf8.
         }
     }
 
     Ok(())
 }
 
-pub fn pack_repository(repo_path: &Path, packfile_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+pub fn pack_repository(
+    repo_path: &Path,
+    packfile_path: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut packfile = File::create(packfile_path)?;
     let mut entries = Vec::new();
     let mut data_offset = 4;
@@ -84,7 +92,7 @@ pub fn pack_repository(repo_path: &Path, packfile_path: &Path) -> Result<(), Box
 }
 
 pub fn try_read_packfile(packfile_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
-//fn try_read_packfile(packfile_path: &Path) -> io::Result<()> {
+    //fn try_read_packfile(packfile_path: &Path) -> io::Result<()> {
     let file = File::open(packfile_path)?;
     let mut reader = BufReader::new(file);
 
@@ -116,14 +124,23 @@ pub fn try_read_packfile(packfile_path: &Path) -> Result<(), Box<dyn std::error:
 
         let filename = String::from_utf8_lossy(&filename_bytes).to_string();
 
-        println!("File: Offset={}, Size={}, Filename={}", offset, size, filename);
+        println!(
+            "File: Offset={}, Size={}, Filename={}",
+            offset, size, filename
+        );
 
         reader.seek(SeekFrom::Start(offset as u64))?;
         let mut data = vec![0u8; size as usize];
         reader.read_exact(&mut data)?;
 
-        println!("File content (first 20 bytes): {:?}", &data[..20.min(data.len())]);
-        println!("File content (first 1000 bytes): {:?}", &data[..1000.min(data.len())]);
+        println!(
+            "File content (first 20 bytes): {:?}",
+            &data[..20.min(data.len())]
+        );
+        println!(
+            "File content (first 1000 bytes): {:?}",
+            &data[..1000.min(data.len())]
+        );
     }
 
     Ok(())

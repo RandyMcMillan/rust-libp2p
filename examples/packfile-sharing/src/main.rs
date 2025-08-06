@@ -1,33 +1,16 @@
 mod network;
-use std::{error::Error, io::Write, path::PathBuf};
 use clap::Parser;
 use futures::{prelude::*, StreamExt};
 use libp2p::{core::Multiaddr, multiaddr::Protocol};
+use std::{error::Error, io::Write, path::PathBuf};
+use tokio::fs;
 use tokio::task::spawn;
 use tracing_subscriber::EnvFilter;
-use tokio::fs;
-use tokio::io;
+//use tokio::io;
 use std::path::Path;
-use libp2p::swarm::{NetworkBehaviour, Swarm, SwarmEvent};
-use packfile_sharing::*;
-use packfile_sharing::{try_read_packfile, read_packfile, pack_repository};
-
-#[derive(NetworkBehaviour)]
-struct MyBehaviour {
-    floodsub: libp2p::floodsub::Floodsub,
-}
-
-async fn send_packfile_to_peers(
-    swarm: &mut Swarm<MyBehaviour>,
-    packfile_path: &Path,
-) -> io::Result<()> {
-    let file_data = fs::read(packfile_path).await?;
-    let topic = libp2p::floodsub::Topic::new("packfile_transfer");
-
-    swarm.behaviour_mut().floodsub.publish(topic, file_data);
-
-    Ok(())
-}
+//use libp2p::swarm::*;//{NetworkBehaviour, Swarm, SwarmEvent};
+//use packfile_sharing::*;
+use packfile_sharing::{pack_repository, read_packfile, try_read_packfile};
 
 async fn example_repo() -> Result<(), Box<dyn Error>> {
     let repo_path = Path::new("./example_repo");
@@ -43,9 +26,9 @@ async fn example_repo() -> Result<(), Box<dyn Error>> {
     fs::create_dir_all(repo_path).await?;
     fs::write(repo_path.join("file2.txt"), &"File 2 content").await?;
 
-    pack_repository(repo_path, packfile_path).expect("");
-    read_packfile(packfile_path).expect("");
-    try_read_packfile(packfile_path).expect("");
+    pack_repository(repo_path, packfile_path).expect("pack_repository failed!");
+    read_packfile(packfile_path).expect("read_packfile failed!");
+    try_read_packfile(packfile_path).expect("try_read_packfile failed!");
 
     fs::write(repo_path.join("file1.txt"), b"File 1 content").await?;
     fs::write(repo_path.join("file2.bin"), &[1, 2, 3, 4, 5]).await?;
@@ -63,15 +46,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .try_init();
 
     let opt = Opt::parse();
-    example_repo().await;
+    let _ = example_repo().await;
 
     //let packfile_path = Path::new("./repo.pack");
 
     // Create a dummy packfile for testing
     //fs::write(packfile_path, b"This is a dummy packfile.").await?;
-
-
-
 
     let (mut network_client, mut network_events, network_event_loop) =
         network::new(opt.secret_key_seed).await?;
