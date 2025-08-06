@@ -50,8 +50,8 @@ async fn example_repo() -> Result<(), Box<dyn Error>> {
     fs::write(repo_path.join("file1.txt"), b"File 1 content").await?;
     fs::write(repo_path.join("file2.bin"), &[1, 2, 3, 4, 5]).await?;
 
-    read_packfile(packfile_path).expect("");
-    try_read_packfile(packfile_path).expect("");
+    read_packfile(packfile_path).expect("read_packfile failed!");
+    try_read_packfile(packfile_path).expect("try_read_packfile failed!");
 
     Ok(())
 }
