@@ -442,8 +442,7 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: Str
                 match args.next() {
                     Some(key) => kad::RecordKey::new(&key),
                     None => {
-                        eprintln!("GET <commit_hash>");
-                        //eprint!("{}/gnostr> ", get_blockheight().await.expect("REASON"));
+                        eprintln!("gnostr> GET <commit_hash>");
                         eprint!("gnostr> ");
                         return;
                     }
@@ -462,7 +461,8 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: Str
                 match args.next() {
                     Some(key) => kad::RecordKey::new(&key),
                     None => {
-                        eprintln!("GET_PROVIDERS <commit_hash>");
+                        eprint!("gnostr> GET_PROVIDERS <commit_hash>");
+                        eprint!("gnostr> ");
                         return;
                     }
                 }
@@ -474,7 +474,8 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: Str
                 match args.next() {
                     Some(key) => kad::RecordKey::new(&key),
                     None => {
-                        eprintln!("PUT <commit_hash>");
+                        eprintln!("gnostr> PUT <key> <value>");
+                        eprint!("gnostr> ");
                         return;
                     }
                 }
@@ -483,7 +484,8 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: Str
                 match args.next() {
                     Some(value) => value.as_bytes().to_vec(),
                     None => {
-                        tracing::debug!("PUT <commit_hash>");
+                        eprintln!("gnostr> PUT {:?} <value>", key);
+                        eprint!("gnostr> ");
                         return;
                     }
                 }
@@ -503,33 +505,14 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: Str
                 match args.next() {
                     Some(key) => kad::RecordKey::new(&key),
                     None => {
-                        eprintln!("PUT_PROVIDER <commit_diff>");
+                        eprint!("gnostr> ");
                         return;
                     }
                 }
             };
-            eprint!("gnostr> {:?}", key.clone());
-
             kademlia
                 .start_providing(key)
                 .expect("Failed to start providing key");
-        }
-        Some("FETCH") => {
-            let key = {
-                match args.next() {
-                    Some(key) => {
-                        //git show <commit_hash> (key)
-                        tracing::info!("{}", key);
-                    } //kad::RecordKey::new(&key),
-                    None => {
-                        eprintln!("Expected key");
-                        return;
-                    }
-                }
-            };
-            //kademlia.get_providers(kad::RecordKey::new(&key));
-
-            //std::process::exit(0);
         }
         Some("QUIT") => {
             std::process::exit(0);
@@ -541,7 +524,7 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: Str
             std::process::exit(0);
         }
         _ => {
-            tracing::info!("\nGET, GET_PROVIDERS, PUT, PUT_PROVIDER <commit_hash>");
+            tracing::debug!("\nGET, GET_PROVIDERS, PUT, PUT_PROVIDER <commit_hash>");
             eprint!("gnostr> ");
         }
     }
