@@ -238,8 +238,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     //tracing::info!("weeble = {weeble:?}");
     let blockheight = get_blockheight_async().await.unwrap();
     tracing::info!("blockheight = {blockheight:?}");
-    let blockheight = get_blockheight_sync().unwrap();
-    tracing::info!("blockheight = {blockheight:?}");
+    //let blockheight = get_blockheight_sync().unwrap();
+    //tracing::info!("blockheight = {blockheight:?}");
     let wobble = get_wobble_async().await.unwrap();
     tracing::info!("wobble = {wobble:?}");
     //let wobble = get_wobble_sync().unwrap();
@@ -274,7 +274,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Results in PeerID 12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN which is
     // used as the rendezvous point by the other peer examples.
     // TODO --key arg
-    let keypair = libp2p::identity::Keypair::ed25519_from_bytes([3; 32]).unwrap();
+    //let keypair = libp2p::identity::Keypair::ed25519_from_bytes([3; 32]).unwrap();
 
     // We create a custom network behaviour that combines
     // Kademlia and mDNS identify rendezvous ping
@@ -289,7 +289,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     // let mut swarm = libp2p::SwarmBuilder::with_new_identity()
-    let mut swarm = libp2p::SwarmBuilder::with_existing_identity(keypair)
+    let mut swarm = libp2p::SwarmBuilder::with_existing_identity(keypair.expect("REASON"))
         .with_tokio()
         .with_tcp(
             tcp::Config::default(),
