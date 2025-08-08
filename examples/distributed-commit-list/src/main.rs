@@ -309,6 +309,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Kick it off.
     loop {
+        log::info!("begin loop...");
         //run
         let result = run(&args, &mut swarm.behaviour_mut().kademlia).await;
         log::trace!("result={:?}", result);
@@ -446,6 +447,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             }
                 }
         }
+        log::info!("end loop...");
     }
 }
 
@@ -459,16 +461,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
 //        .expect("Failed to start providing key");
 //}
 async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
+    tracing::info!("464:handle_input_line");
     let mut args = line.split(' ');
 
     match args.next() {
+        //tracing::info!("468:args.next()");
         Some("GET") => {
+            tracing::info!("470:GET");
             let key = {
                 match args.next() {
                     Some(key) => kad::RecordKey::new(&key),
                     None => {
-                        eprintln!("gnostr> GET <commit_hash>");
-                        eprint!("gnostr> ");
+                        eprintln!("472:\ngnostr> GET <commit_hash>");
+                        eprint!("473:\ngnostr> ");
                         return;
                     }
                 }
@@ -482,12 +487,13 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: Str
             );
         }
         Some("GET_PROVIDERS") => {
+            tracing::info!("490:GET_PROVIDERS");
             let key = {
                 match args.next() {
                     Some(key) => kad::RecordKey::new(&key),
                     None => {
-                        eprint!("gnostr> GET_PROVIDERS <commit_hash>");
-                        eprint!("gnostr> ");
+                        eprint!("491:gnostr> GET_PROVIDERS <commit_hash>");
+                        eprint!("492:\ngnostr> ");
                         return;
                     }
                 }
@@ -495,12 +501,13 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: Str
             kademlia.get_providers(key);
         }
         Some("PUT") => {
+            tracing::info!("504:PUT");
             let key = {
                 match args.next() {
                     Some(key) => kad::RecordKey::new(&key),
                     None => {
-                        eprintln!("gnostr> PUT <key> <value>");
-                        eprint!("gnostr> ");
+                        eprintln!("504:gnostr> PUT <key> <value>");
+                        eprint!("505:\ngnostr> ");
                         return;
                     }
                 }
@@ -509,8 +516,8 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: Str
                 match args.next() {
                     Some(value) => value.as_bytes().to_vec(),
                     None => {
-                        eprintln!("gnostr> PUT {:?} <value>", key);
-                        eprint!("gnostr> ");
+                        eprintln!("514:gnostr> PUT {:?} <value>", key);
+                        eprint!("515:\ngnostr> ");
                         return;
                     }
                 }
@@ -526,11 +533,12 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: Str
                 .expect("Failed to store record locally.");
         }
         Some("PUT_PROVIDER") => {
+            tracing::info!("536:PUT_PROVIDERS");
             let key = {
                 match args.next() {
                     Some(key) => kad::RecordKey::new(&key),
                     None => {
-                        eprint!("gnostr> ");
+                        eprint!("535:\ngnostr> ");
                         return;
                     }
                 }
@@ -550,7 +558,7 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: Str
         }
         _ => {
             tracing::debug!("\nGET, GET_PROVIDERS, PUT, PUT_PROVIDER <commit_hash>");
-            eprint!("gnostr> ");
+            eprint!("561:\ngnostr> ");
         }
     }
 }
@@ -630,6 +638,7 @@ fn match_with_parent(
 }
 
 async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<(), GitError> {
+    log::info!("being run...");
     let path = args.flag_git_dir.as_ref().map(|s| &s[..]).unwrap_or(".");
     let repo = Repository::discover(path)?;
 
@@ -914,6 +923,7 @@ async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<
             true
         })?;
     }
+    log::info!("end run...");
 
     Ok(())
 }
