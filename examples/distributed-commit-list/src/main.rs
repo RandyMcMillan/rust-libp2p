@@ -1,32 +1,40 @@
 #![doc = include_str!("../README.md")]
-
 use clap::Parser;
 use git2::{Commit, Diff, DiffOptions, ObjectType, Oid, Repository, Signature, Time};
 use git2::{DiffFormat, Error as GitError, Pathspec};
+use gnostr::blockheight::{blockheight_async, blockheight_sync};
+use gnostr::weeble::{weeble_async/*, weeble_sync*/};
+use gnostr::wobble::{wobble_async/*, wobble_sync*/};
+use gnostr_asyncgit::sync::commit::{padded_commit_id, serialize_commit};
+use hex;
 use std::str;
 use std::{error::Error, time::Duration};
 
+//use gnostr::p2p::{IPFS_BOOTNODES, IPFS_PROTO_NAME};
+
 use futures::stream::StreamExt;
-use libp2p::StreamProtocol;
 use libp2p::{
     identify, kad,
     kad::{
-        store::MemoryStore, store::MemoryStoreConfig, store::RecordStore, Mode, PutRecordError,
-        Quorum, Record, RecordKey,
+        store::MemoryStore, store::MemoryStoreConfig, store::RecordStore, GetRecordOk, Mode,
+        Quorum, Record,
     },
     mdns, noise, ping, rendezvous,
     swarm::{NetworkBehaviour, SwarmEvent},
-    tcp, yamux,
+    tcp, yamux, PeerId,
 };
 use tokio::{
     io::{self, AsyncBufReadExt},
     select,
 };
-use tracing::Level;
+use tracing::{debug, info, trace, Level};
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{fmt, EnvFilter};
 //use tracing_log::LogTracer;
 use tracing_log::log;
+
+use libp2p::StreamProtocol;
+
 fn init_subscriber(_level: Level) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
     let fmt_layer = fmt::layer().with_target(false);
     let filter_layer = EnvFilter::try_from_default_env()
@@ -183,9 +191,76 @@ fn print_record(record: Record) {
     println!("--- End Record ---");
 }
 
+/// async fn get_weeble_async() -> Result<String, Box<dyn Error>>
+async fn get_weeble_async() -> Result<String, Box<dyn Error>> {
+    Ok(weeble_async().await.unwrap().to_string())
+}
+///// fn get_weeble_sync() -> Result<String, Box<dyn Error>>
+//fn get_weeble_sync() -> Result<String, Box<dyn Error>> {
+//    Ok(weeble_sync().unwrap().to_string())
+//}
+
+/// async fn get_blockheight_async() -> Result<String, Box<dyn Error>>
+async fn get_blockheight_async() -> Result<String, Box<dyn Error>> {
+    Ok(blockheight_async().await)
+}
+
+/// fn get_blockheight_sync() -> Result<String, Box<dyn Error>>
+fn get_blockheight_sync() -> Result<String, Box<dyn Error>> {
+    Ok(blockheight_sync())
+}
+/// async fn get_wobble_async() -> Result<String, Box<dyn Error>>
+async fn get_wobble_async() -> Result<String, Box<dyn Error>> {
+    Ok(wobble_async().await.unwrap().to_string())
+}
+///// fn get_wobble_sync() -> Result<String, Box<dyn Error>>
+//fn get_wobble_sync() -> Result<String, Box<dyn Error>> {
+//    Ok(wobble_sync().unwrap().to_string())
+//}
+
+fn create_keypair_from_hex_string(
+    secret_key_hex: &str,
+) -> Result<libp2p::identity::Keypair, hex::FromHexError> {
+    // The secret key for Ed25519 is 32 bytes.
+    let mut secret_key_bytes = [0u8; 32];
+    hex::decode_to_slice(secret_key_hex, &mut secret_key_bytes)?;
+    Ok(libp2p::identity::Keypair::ed25519_from_bytes(secret_key_bytes).unwrap())
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let _ = init_subscriber(Level::INFO);
+
+
+    let weeble = get_weeble_async().await.unwrap();
+    tracing::info!("weeble = {weeble:?}");
+    //let weeble = get_weeble_sync().unwrap();
+    //tracing::info!("weeble = {weeble:?}");
+    let blockheight = get_blockheight_async().await.unwrap();
+    tracing::info!("blockheight = {blockheight:?}");
+    let blockheight = get_blockheight_sync().unwrap();
+    tracing::info!("blockheight = {blockheight:?}");
+    let wobble = get_wobble_async().await.unwrap();
+    tracing::info!("wobble = {wobble:?}");
+    //let wobble = get_wobble_sync().unwrap();
+    //tracing::info!("wobble = {wobble:?}");
+
+    //TODO create key from args GET ...
+    let args = Args::parse();
+    tracing::debug!("args={:?}", args);
+
+    // Results in PeerID 12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN which is
+    // used as the rendezvous point by the other peer examples.
+    // TODO --key arg
+    let weeble_bh_wobble = format!("{}{}{}", weeble, blockheight, wobble);
+    let weeble_bh_wobble = format!("{:0>64}", weeble_bh_wobble);
+    let keypair = create_keypair_from_hex_string(
+        //"0000000000000000000000000000000000000000000000000000000000000000",
+        &weeble_bh_wobble,
+    );
+    //let keypair = create_keypair_from_hex_string("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+    //libp2p::identity::Keypair::ed25519_from_bytes([0; 32]).unwrap();
+    let local_peer_id = PeerId::from(keypair.clone().expect("REASON").public());
 
     //let blockheight = get_blockheight().await.unwrap();
     //log::info!("blockheight = {blockheight:?}");

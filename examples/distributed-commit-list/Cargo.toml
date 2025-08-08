@@ -14,6 +14,8 @@ clap = { version = "4.4.13", features = ["derive"] }
 futures = { workspace = true }
 git2 = "0.18.3"
 gnostr = "0.0.111"
+gnostr-asyncgit = "0.0.4"
+hex = "0.4"
 libp2p = { path = "../../libp2p", features = [ "tokio", "dns", "kad", "mdns", "noise", "macros",
 "tcp", "yamux", "identify", "ping", "rendezvous", "rsa"] }
 reqwest = "0.12.12"

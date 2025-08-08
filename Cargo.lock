@@ -2435,6 +2435,8 @@ dependencies = [
  "futures",
  "git2",
  "gnostr",
+ "gnostr-asyncgit",
+ "hex",
  "libp2p 0.54.2",
  "reqwest 0.12.12",
  "time 0.1.45",
