@@ -213,9 +213,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     tracing::debug!("args={:?}", args);
     let weeble_bh_wobble = get_weeble_bh_wobble_async().await?.replace("/", "");
     let weeble_bh_wobble = format!("{:0>64}", weeble_bh_wobble.clone());
-    let keypair = create_keypair_from_hex_string(
-        &weeble_bh_wobble,
-    );
+    let keypair = create_keypair_from_hex_string(&weeble_bh_wobble);
     let local_peer_id = PeerId::from(keypair.clone().expect("REASON").public());
     let args = Args::parse();
     tracing::debug!("args={:?}", args);
@@ -413,12 +411,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         )
                         )
                         ) => {
-                        println!(
+                        print!(
                             "{{\"commit\":{:?},\"message\":{:?}}}",
                             std::str::from_utf8(key.as_ref()).unwrap(),
                             std::str::from_utf8(&value).unwrap(),
                         );
-
+                        print!("\n{}:373:gnostr> ", get_weeble_bh_wobble_async().await?);
 
                     }
                     //kad::QueryResult::GetRecord(Ok(_)) => {}
@@ -850,9 +848,10 @@ async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<
             }
         }
 
+        let key = kad::RecordKey::new(&format!("{}/diff", &commit.id()));
         let diff = get_commit_diff_as_string(&repo, commit.id());
         tracing::debug!("diff={:?}", diff?);
-        //let diff_as_bytes = get_commit_diff_as_bytes(&repo, commit.id())?;
+        let value = get_commit_diff_as_bytes(&repo, commit.id())?;
 
         let record = kad::Record {
             key,
@@ -863,7 +862,7 @@ async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<
         kademlia
             .put_record(record, kad::Quorum::One)
             .expect("Failed to store record locally.");
-        let key = kad::RecordKey::new(&format!("{}", &commit.id()));
+        let key = kad::RecordKey::new(&format!("{}/diff", &commit.id()));
         kademlia
             .start_providing(key)
             .expect("Failed to start providing key");
