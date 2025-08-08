@@ -10,7 +10,10 @@ use futures::stream::StreamExt;
 use libp2p::StreamProtocol;
 use libp2p::{
     identify, kad,
-    kad::{store::MemoryStore, Mode, Record, RecordKey},
+    kad::{
+        store::MemoryStore, store::MemoryStoreConfig, store::RecordStore, Mode, PutRecordError,
+        Quorum, Record, RecordKey,
+    },
     mdns, noise, ping, rendezvous,
     swarm::{NetworkBehaviour, SwarmEvent},
     tcp, yamux,
@@ -196,7 +199,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Results in PeerID 12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN which is
     // used as the rendezvous point by the other peer examples.
     // TODO --key arg
-    let keypair = libp2p::identity::Keypair::ed25519_from_bytes([0; 32]).unwrap();
+    let keypair = libp2p::identity::Keypair::ed25519_from_bytes([3; 32]).unwrap();
 
     // We create a custom network behaviour that combines
     // Kademlia and mDNS identify rendezvous ping
@@ -222,9 +225,30 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .with_behaviour(|key| {
             let mut ipfs_cfg = kad::Config::new(IPFS_PROTO_NAME);
             ipfs_cfg.set_query_timeout(Duration::from_secs(5 * 60));
-            let ipfs_store = kad::store::MemoryStore::new(key.public().to_peer_id());
+            //handle large git commit diffs
+            let store_config = MemoryStoreConfig {
+                max_records: usize::MAX,
+                max_value_bytes: usize::MAX,
+                max_providers_per_key: usize::MAX,
+                max_provided_keys: usize::MAX,
+            };
+
+            let ipfs_store = kad::store::MemoryStore::with_config(
+                key.public().to_peer_id(),
+                store_config.clone(),
+            );
+
+            let kademlia_store = kad::store::MemoryStore::with_config(
+                key.public().to_peer_id(),
+                store_config.clone(),
+            );
+
             Ok(Behaviour {
-                ipfs: kad::Behaviour::with_config(key.public().to_peer_id(), ipfs_store, ipfs_cfg),
+                ipfs: kad::Behaviour::with_config(
+                    key.public().to_peer_id(),
+                    ipfs_store,
+                    ipfs_cfg.clone(),
+                ),
                 identify: identify::Behaviour::new(identify::Config::new(
                     "/yamux/1.0.0".to_string(),
                     key.public(),
@@ -235,9 +259,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 ping: ping::Behaviour::new(
                     ping::Config::new().with_interval(Duration::from_secs(1)),
                 ),
-                kademlia: kad::Behaviour::new(
+                kademlia: kad::Behaviour::with_config(
                     key.public().to_peer_id(),
-                    MemoryStore::new(key.public().to_peer_id()),
+                    kademlia_store,
+                    ipfs_cfg.clone(),
                 ),
                 mdns: mdns::tokio::Behaviour::new(
                     mdns::Config::default(),
