@@ -17,8 +17,9 @@ libp2p = { path = "../../libp2p", features = [ "tokio", "gossipsub", "mdns", "no
 log = "0.4.20"
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
-git2 = "0.19.0"
 ureq = { version = "2", features = ["json", "charset"] }
+gnostr = "0.0.111"
+git2 = "0.18.3"
 
 [lints]
 workspace = true
