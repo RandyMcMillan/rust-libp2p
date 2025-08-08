@@ -3,8 +3,8 @@ use clap::Parser;
 use git2::{Commit, Diff, DiffOptions, ObjectType, Oid, Repository, Signature, Time};
 use git2::{DiffFormat, Error as GitError, Pathspec};
 use gnostr::blockheight::{blockheight_async, blockheight_sync};
-use gnostr::weeble::{weeble_async/*, weeble_sync*/};
-use gnostr::wobble::{wobble_async/*, wobble_sync*/};
+use gnostr::weeble::{weeble_async /*, weeble_sync*/};
+use gnostr::wobble::{wobble_async /*, wobble_sync*/};
 use gnostr_asyncgit::sync::commit::{padded_commit_id, serialize_commit};
 use hex;
 use std::str;
@@ -64,25 +64,6 @@ fn init_subscriber(_level: Level) -> Result<(), Box<dyn Error + Send + Sync + 's
         .try_init()?;
 
     Ok(())
-}
-
-async fn get_blockheight() -> Result<String, Box<dyn Error>> {
-    let client = reqwest::Client::builder()
-        .build()
-        .expect("should be able to build reqwest client");
-    let blockheight = client
-        .get("https://mempool.space/api/blocks/tip/height")
-        .send()
-        .await?;
-    log::debug!("mempool.space status: {}", blockheight.status());
-    if blockheight.status() != reqwest::StatusCode::OK {
-        log::debug!("didn't get OK status: {}", blockheight.status());
-        Ok(String::from(">>>>>"))
-    } else {
-        let blockheight = blockheight.text().await?;
-        log::debug!("{}", blockheight);
-        Ok(blockheight)
-    }
 }
 
 const IPFS_BOOTNODES: [&str; 4] = [
@@ -195,28 +176,16 @@ fn print_record(record: Record) {
 async fn get_weeble_async() -> Result<String, Box<dyn Error>> {
     Ok(weeble_async().await.unwrap().to_string())
 }
-///// fn get_weeble_sync() -> Result<String, Box<dyn Error>>
-//fn get_weeble_sync() -> Result<String, Box<dyn Error>> {
-//    Ok(weeble_sync().unwrap().to_string())
-//}
 
 /// async fn get_blockheight_async() -> Result<String, Box<dyn Error>>
 async fn get_blockheight_async() -> Result<String, Box<dyn Error>> {
     Ok(blockheight_async().await)
 }
 
-/// fn get_blockheight_sync() -> Result<String, Box<dyn Error>>
-fn get_blockheight_sync() -> Result<String, Box<dyn Error>> {
-    Ok(blockheight_sync())
-}
 /// async fn get_wobble_async() -> Result<String, Box<dyn Error>>
 async fn get_wobble_async() -> Result<String, Box<dyn Error>> {
     Ok(wobble_async().await.unwrap().to_string())
 }
-///// fn get_wobble_sync() -> Result<String, Box<dyn Error>>
-//fn get_wobble_sync() -> Result<String, Box<dyn Error>> {
-//    Ok(wobble_sync().unwrap().to_string())
-//}
 
 fn create_keypair_from_hex_string(
     secret_key_hex: &str,
@@ -227,54 +196,29 @@ fn create_keypair_from_hex_string(
     Ok(libp2p::identity::Keypair::ed25519_from_bytes(secret_key_bytes).unwrap())
 }
 
+async fn get_weeble_bh_wobble_async() -> Result<String, Box<dyn Error>> {
+    let weeble = get_weeble_async().await.unwrap();
+    tracing::debug!("weeble = {weeble:?}");
+    let blockheight = get_blockheight_async().await.unwrap();
+    tracing::debug!("blockheight = {blockheight:?}");
+    let wobble = get_wobble_async().await.unwrap();
+    tracing::debug!("wobble = {wobble:?}");
+    let weeble_bh_wobble = format!("{}/{}/{}", weeble, blockheight, wobble);
+    Ok(weeble_bh_wobble)
+}
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let _ = init_subscriber(Level::INFO);
-
-
-    let weeble = get_weeble_async().await.unwrap();
-    tracing::info!("weeble = {weeble:?}");
-    //let weeble = get_weeble_sync().unwrap();
-    //tracing::info!("weeble = {weeble:?}");
-    let blockheight = get_blockheight_async().await.unwrap();
-    tracing::info!("blockheight = {blockheight:?}");
-    //let blockheight = get_blockheight_sync().unwrap();
-    //tracing::info!("blockheight = {blockheight:?}");
-    let wobble = get_wobble_async().await.unwrap();
-    tracing::info!("wobble = {wobble:?}");
-    //let wobble = get_wobble_sync().unwrap();
-    //tracing::info!("wobble = {wobble:?}");
-
-    //TODO create key from args GET ...
     let args = Args::parse();
     tracing::debug!("args={:?}", args);
-
-    // Results in PeerID 12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN which is
-    // used as the rendezvous point by the other peer examples.
-    // TODO --key arg
-    let weeble_bh_wobble = format!("{}{}{}", weeble, blockheight, wobble);
-    let weeble_bh_wobble = format!("{:0>64}", weeble_bh_wobble);
+    let weeble_bh_wobble = get_weeble_bh_wobble_async().await?.replace("/", "");
+    let weeble_bh_wobble = format!("{:0>64}", weeble_bh_wobble.clone());
     let keypair = create_keypair_from_hex_string(
-        //"0000000000000000000000000000000000000000000000000000000000000000",
         &weeble_bh_wobble,
     );
-    //let keypair = create_keypair_from_hex_string("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
-    //libp2p::identity::Keypair::ed25519_from_bytes([0; 32]).unwrap();
     let local_peer_id = PeerId::from(keypair.clone().expect("REASON").public());
-
-    //let blockheight = get_blockheight().await.unwrap();
-    //log::info!("blockheight = {blockheight:?}");
-
-    //TODO create key from arg
     let args = Args::parse();
-
-    //for arg in args.into() {
     tracing::debug!("args={:?}", args);
-    //}
-    // Results in PeerID 12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN which is
-    // used as the rendezvous point by the other peer examples.
-    // TODO --key arg
-    //let keypair = libp2p::identity::Keypair::ed25519_from_bytes([3; 32]).unwrap();
 
     // We create a custom network behaviour that combines
     // Kademlia and mDNS identify rendezvous ping
@@ -288,7 +232,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         ping: ping::Behaviour,
     }
 
-    // let mut swarm = libp2p::SwarmBuilder::with_new_identity()
     let mut swarm = libp2p::SwarmBuilder::with_existing_identity(keypair.expect("REASON"))
         .with_tokio()
         .with_tcp(
@@ -361,19 +304,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .add_address(&peer.parse()?, "/dnsaddr/bootstrap.libp2p.io".parse()?);
     }
 
-    // TODO get weeble/blockheight/wobble
     let listen_on = swarm.listen_on("/ip4/0.0.0.0/tcp/62649".parse().unwrap());
     log::debug!("listen_on={}", listen_on.unwrap());
     swarm.behaviour_mut().kademlia.set_mode(Some(Mode::Server));
-    log::info!("swarm.local_peer_id()={:?}", swarm.local_peer_id());
+    log::info!("local_peer_id={:?}", local_peer_id);
     //net work is primed
-
-    //run
-    //let result = run(&args, &mut swarm.behaviour_mut().kademlia).await;
-    //log::trace!("result={:?}", result);
 
     //push commit hashes and commit diffs
 
+    print!("\n{}:373:gnostr> ", get_weeble_bh_wobble_async().await?);
     // Read full lines from stdin
     let mut stdin = io::BufReader::new(io::stdin()).lines();
 
@@ -387,17 +326,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
         //run
         let result = run(&args, &mut swarm.behaviour_mut().kademlia).await;
         log::trace!("result={:?}", result);
-
         select! {
                 Ok(Some(line)) = stdin.next_line() => {
                     log::trace!("line.len()={}", line.len());
                     if line.len() <= 3 {
-                    log::debug!("{:?}", swarm.local_peer_id());
+                    log::info!("{:?}", local_peer_id);
                     for address in swarm.external_addresses() {
-                        log::trace!("{:?}", address);
+                        log::info!("external_address={:?}", address);
                     }
                     for peer in swarm.connected_peers() {
-                        log::trace!("{:?}", peer);
+                        log::info!("connected_peer={:?}", peer);
                     }
                     }
                     handle_input_line(&mut swarm.behaviour_mut().kademlia, line).await;
@@ -405,14 +343,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
                 event = swarm.select_next_some() => match event {
 
-
-                //match event
-
                     SwarmEvent::ConnectionEstablished { peer_id, .. } => {
-                        tracing::trace!("Connected to {}", peer_id);
+                        tracing::info!("Connected to {}", peer_id);
                     }
                     SwarmEvent::ConnectionClosed { peer_id, .. } => {
-                        tracing::trace!("Disconnected from {}", peer_id);
+                        tracing::info!("Disconnected from {}", peer_id);
                     }
                     SwarmEvent::Behaviour(BehaviourEvent::Rendezvous(
                         rendezvous::server::Event::PeerRegistered { peer, registration },
@@ -440,11 +375,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 //    }
 
                 SwarmEvent::NewListenAddr { address, .. } => {
-                    log::debug!("Listening in {address:?}");
+                    log::info!("Listening in {address:?}");
                 }
 
-
-                SwarmEvent::Behaviour(BehaviourEvent::Mdns(mdns::Event::Discovered(list))) => {
+                SwarmEvent::Behaviour(
+                    BehaviourEvent::Mdns(mdns::Event::Discovered(list))) => {
                     for (peer_id, multiaddr) in list {
                         swarm.behaviour_mut().kademlia.add_address(&peer_id, multiaddr.clone());
                         tracing::info!("{}", peer_id.clone());
@@ -452,11 +387,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     }
                 }
 
-
-
-                SwarmEvent::Behaviour(BehaviourEvent::Kademlia(kad::Event::OutboundQueryProgressed { result, ..})) => {
+                SwarmEvent::Behaviour(
+                    BehaviourEvent::Kademlia(kad::Event::OutboundQueryProgressed { result, ..})) => {
                 match result {
-                    kad::QueryResult::GetProviders(Ok(kad::GetProvidersOk::FoundProviders { key, providers, .. })) => {
+                    kad::QueryResult::GetProviders(
+                        Ok(kad::GetProvidersOk::FoundProviders { key, providers, .. })) => {
                         for peer in providers {
                             log::info!(
                                 "Peer {peer:?} provides key {:?}",
@@ -478,9 +413,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         )
                         )
                         ) => {
-                        //tracing::info!("{}",record);
-
-                        print!(
+                        println!(
                             "{{\"commit\":{:?},\"message\":{:?}}}",
                             std::str::from_utf8(key.as_ref()).unwrap(),
                             std::str::from_utf8(&value).unwrap(),
@@ -534,6 +467,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
 //        .expect("Failed to start providing key");
 //}
 async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
+    let weeble = get_weeble_async().await.unwrap();
+    let blockheight = get_blockheight_async().await.unwrap();
+    let wobble = get_wobble_async().await.unwrap();
     let mut args = line.split(' ');
 
     match args.next() {
@@ -542,13 +478,18 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: Str
                 match args.next() {
                     Some(key) => kad::RecordKey::new(&key),
                     None => {
-                        eprintln!("gnostr> GET <commit_hash>");
-                        eprint!("gnostr> ");
+                        println!(
+                            "\n{}/{}/{}:547:gnostr> GET <commit_hash>",
+                            weeble.clone(),
+                            blockheight.clone(),
+                            wobble.clone()
+                        );
                         return;
                     }
                 }
             };
             let query_id = kademlia.get_record(key.clone());
+            kademlia.get_record(key.clone());
             //print_record(record);
             tracing::debug!(
                 "kademlia.get_record({})\n{}",
@@ -561,8 +502,12 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: Str
                 match args.next() {
                     Some(key) => kad::RecordKey::new(&key),
                     None => {
-                        eprint!("gnostr> GET_PROVIDERS <commit_hash>");
-                        eprint!("gnostr> ");
+                        println!(
+                            "\n{}/{}/{}:547:gnostr> GET_PROVIDERS <commit_hash>",
+                            weeble.clone(),
+                            blockheight.clone(),
+                            wobble.clone()
+                        );
                         return;
                     }
                 }
@@ -574,8 +519,12 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: Str
                 match args.next() {
                     Some(key) => kad::RecordKey::new(&key),
                     None => {
-                        eprintln!("gnostr> PUT <key> <value>");
-                        eprint!("gnostr> ");
+                        eprint!(
+                            "\n{}/{}/{}:547:gnostr> PUT <key> <value>",
+                            weeble.clone(),
+                            blockheight.clone(),
+                            wobble.clone()
+                        );
                         return;
                     }
                 }
@@ -584,8 +533,12 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: Str
                 match args.next() {
                     Some(value) => value.as_bytes().to_vec(),
                     None => {
-                        eprintln!("gnostr> PUT {:?} <value>", key);
-                        eprint!("gnostr> ");
+                        eprint!(
+                            "\n{}/{}/{}:547:gnostr> PUT <key> <value>",
+                            weeble.clone(),
+                            blockheight.clone(),
+                            wobble.clone()
+                        );
                         return;
                     }
                 }
@@ -605,7 +558,12 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: Str
                 match args.next() {
                     Some(key) => kad::RecordKey::new(&key),
                     None => {
-                        eprint!("gnostr> ");
+                        eprint!(
+                            "\n{}/{}/{}:547:gnostr> PUT_PROVIDER <key> ",
+                            weeble.clone(),
+                            blockheight.clone(),
+                            wobble.clone()
+                        );
                         return;
                     }
                 }
@@ -624,8 +582,18 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: Str
             std::process::exit(0);
         }
         _ => {
-            tracing::debug!("\nGET, GET_PROVIDERS, PUT, PUT_PROVIDER <commit_hash>");
-            eprint!("gnostr> ");
+            eprintln!(
+                "\n{}/{}/{}:618:gnostr> GET <key> ",
+                weeble.clone(),
+                blockheight.clone(),
+                wobble.clone()
+            );
+            eprint!(
+                "{}/{}/{}:618:gnostr> ",
+                weeble.clone(),
+                blockheight.clone(),
+                wobble.clone()
+            );
         }
     }
 }
