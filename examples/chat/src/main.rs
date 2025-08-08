@@ -68,9 +68,7 @@ async fn fetch_data_async(url: String) -> Result<ureq::Response, ureq::Error> {
     .unwrap() // Handle potential join errors
 }
 
-
 async fn async_prompt(mempool_url: String) -> String {
-
     let s = tokio::spawn(async move {
         let agent: Agent = ureq::AgentBuilder::new()
             .timeout_read(Duration::from_secs(10))
@@ -86,7 +84,7 @@ async fn async_prompt(mempool_url: String) -> String {
         body
     });
 
-        s.await.unwrap()
+    s.await.unwrap()
 }
 
 #[tokio::main]
@@ -224,14 +222,14 @@ async fn main() -> Result<(), Box<dyn StdError>> {
     let sweetsats_url = "https://mempool.sweetsats.io/api/blocks/tip/height";
     let gob_sv_url = "https://bitcoin.gob.sv/api/blocks/tip/height";
 
-    let mempool_url_vec =
-        vec!["https://mempool.space/api/blocks/tip/height",
-             "https://mempool.sweetsats.io/api/blocks/tip/height",
-             "https://bitcoin.gob.sv/api/blocks/tip/height"];
+    let mempool_url_vec = vec![
+        "https://mempool.space/api/blocks/tip/height",
+        "https://mempool.sweetsats.io/api/blocks/tip/height",
+        "https://bitcoin.gob.sv/api/blocks/tip/height",
+    ];
 
     let prompt = async_prompt(mempool_url.to_string()).await;
     println!("A_GNOSTR/{prompt}> ");
-
 
     let mut handles = Vec::new();
     let ureq_test = tokio::spawn(async move {
@@ -304,8 +302,8 @@ async fn main() -> Result<(), Box<dyn StdError>> {
     }
     // Kick it off
     loop {
-    let prompt = async_prompt(mempool_url.to_string()).await;
-    //print!("308:GNOSTR/{prompt}>");
+        let prompt = async_prompt(mempool_url.to_string()).await;
+        //print!("308:GNOSTR/{prompt}>");
 
         select! {
             Ok(Some(mut line)) = stdin.next_line() => {

@@ -5,7 +5,6 @@ use std::path::Path;
 fn main() -> io::Result<()> {
     //let current_dir = Path::new(".git/logs/refs/heads");
 
-
     let mut current_dir = std::env::current_dir()?;
 
     loop {
@@ -25,8 +24,6 @@ fn main() -> io::Result<()> {
         }
     }
 
-
-
     if !current_dir.exists() {
         eprintln!("Error: .git/logs/refs/heads directory not found.");
         return Ok(());
@@ -42,26 +39,22 @@ fn main() -> io::Result<()> {
                         eprintln!("Error processing {:?}: {}", path, e);
                     }
                 } else {
-                current_dir = std::env::current_dir()?;
-                println!("{:?}", current_dir);
-                if let Ok(entries) = fs::read_dir(current_dir) {
-                    for entry in entries {
-                        if let Ok(entry) = entry {
-                            let path = entry.path();
+                    current_dir = std::env::current_dir()?;
+                    println!("{:?}", current_dir);
+                    if let Ok(entries) = fs::read_dir(current_dir) {
+                        for entry in entries {
+                            if let Ok(entry) = entry {
+                                let path = entry.path();
 
-                            if path.is_file() {
-                                if let Err(e) = process_log_file(&path) {
-                                    eprintln!("Error processing {:?}: {}", path, e);
+                                if path.is_file() {
+                                    if let Err(e) = process_log_file(&path) {
+                                        eprintln!("Error processing {:?}: {}", path, e);
+                                    }
+                                } else {
                                 }
-                            } else {
-
-
                             }
                         }
                     }
-                }
-
-
                 }
             }
         }
@@ -69,7 +62,6 @@ fn main() -> io::Result<()> {
 
     Ok(())
 }
-
 
 fn process_logs_refs(logs_ref_dir: &Path) -> io::Result<()> {
     if let Ok(entries) = fs::read_dir(logs_ref_dir) {
@@ -89,7 +81,6 @@ fn process_logs_refs(logs_ref_dir: &Path) -> io::Result<()> {
 
     Ok(())
 }
-
 
 fn process_log_file(file_path: &Path) -> io::Result<()> {
     let file = File::open(file_path)?;
@@ -127,8 +118,15 @@ fn parse_log_entry(line: &str) -> Option<LogEntry> {
     let timestamp_str = parts.get(3).unwrap_or(&"").to_string();
     let timezone_str = parts.get(4).unwrap_or(&"").to_string();
 
-    let message_start = parts.iter().position(|&p| p.starts_with("message:")).unwrap_or(parts.len());
-    let message = parts[message_start..].join(" ").replace("message:", "").trim().to_string();
+    let message_start = parts
+        .iter()
+        .position(|&p| p.starts_with("message:"))
+        .unwrap_or(parts.len());
+    let message = parts[message_start..]
+        .join(" ")
+        .replace("message:", "")
+        .trim()
+        .to_string();
 
     Some(LogEntry {
         old_commit,
