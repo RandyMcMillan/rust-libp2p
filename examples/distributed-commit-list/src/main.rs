@@ -868,9 +868,11 @@ async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<
             .expect("Failed to start providing key");
 
         //println!("commit.tree_id={}", &commit.tree_id());
-        let key = kad::RecordKey::new(&format!("{}", &commit.tree_id()));
-        //println!("commit.tree={:?}", &commit.tree());
-        let value = Vec::from(format!("{:?}", commit.tree()));
+        let key = kad::RecordKey::new(&format!("{}/tree", &commit.id()));
+        //NOTE
+        //commit.id()/tree to key
+        //push commit.tree() to value
+        let value = Vec::from(format!("{:?}", commit.tree()?));
         let record = kad::Record {
             key,
             value,
@@ -880,7 +882,7 @@ async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<
         kademlia
             .put_record(record, kad::Quorum::One)
             .expect("Failed to store record locally.");
-        let key = kad::RecordKey::new(&format!("{}", &commit.id()));
+        let key = kad::RecordKey::new(&format!("{}/tree", &commit.id()));
         kademlia
             .start_providing(key)
             .expect("Failed to start providing key");
