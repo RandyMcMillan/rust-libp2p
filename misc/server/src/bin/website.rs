@@ -38,12 +38,13 @@ use std::io::{self, Write};
 async fn main() -> Result<()> {
     let client = IpfsClient::default();
 
+    let res = client.id(None).await;
+    println!("{:?}", res);
+    let res = client
+        .id(Some("12D3KooWSyHa263MdiSuFACFRkz54SDxHqzjdyGKQSu9gTZxGXs8"))
+        .await;
 
-let res = client.id(None).await;
-            println!("{:?}", res);
-let res = client.id(Some("12D3KooWSyHa263MdiSuFACFRkz54SDxHqzjdyGKQSu9gTZxGXs8")).await;
-
-            println!("{:?}", res);
+    println!("{:?}", res);
 
     let data = Cursor::new("Hello World!");
     match client.add(data).await {
@@ -51,9 +52,9 @@ let res = client.id(Some("12D3KooWSyHa263MdiSuFACFRkz54SDxHqzjdyGKQSu9gTZxGXs8")
             println!("{}", res.hash);
             //let output_path = Path::new(&res.hash); // Use CID as filename/directory
 
-    let srcdir = PathBuf::from("./src");
-    let path = format!("{}", Path::new(&srcdir).join("file.json").display());
-    println!("{:?}", fs::canonicalize(&path));
+            let srcdir = PathBuf::from("./src");
+            let path = format!("{}", Path::new(&srcdir).join("file.json").display());
+            println!("{:?}", fs::canonicalize(&path));
             //https://bafybeib66hlejohsjfm2wuxnsld5m47nkzhy6ffx3vzuwq323skkxt55yu.ipfs.dweb.link
             match client
                 .get(&path)
