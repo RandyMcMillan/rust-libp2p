@@ -829,6 +829,19 @@ async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<
         //let value = Vec::from(commit.message_bytes().clone());
         let value = Vec::from(commit.message_bytes());
         tracing::debug!("value={:?}", value.clone());
+        let record = kad::Record {
+            key,
+            value,
+            publisher: None,
+            expires: None,
+        };
+        kademlia
+            .put_record(record, kad::Quorum::One)
+            .expect("Failed to store record locally.");
+        let key = kad::RecordKey::new(&format!("{}", &commit.id()));
+        kademlia
+            .start_providing(key)
+            .expect("Failed to start providing key");
 
         let repo_path = "."; // Path to your Git repository
         let repo = Repository::discover(repo_path).expect("Failed to open repository");
