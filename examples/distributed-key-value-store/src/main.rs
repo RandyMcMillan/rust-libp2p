@@ -158,7 +158,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         assert_eq!(keypair.public(), rehydrated_public_key);
         println!("Successfully rehydrated the keypair! They are identical.");
 
-        let line = format!("PUT {:?} {:?}", hash, repo_name_clone2.unwrap().unwrap());
+        let line = format!("PUT {:?} {:?}", repo_name_clone2.unwrap().unwrap(), hash);
         println!("{}", line);
         put_repo_key_value(&mut swarm.behaviour_mut().kademlia, line.replace("\"", ""));
     } else {
@@ -252,7 +252,7 @@ fn put_repo_key_value(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) 
     match args.next() {
         Some("PUT") => {
             let key = {
-                match args.next() {
+                match args.next().clone() {
                     Some(key) => kad::RecordKey::new(&key),
                     None => {
                         eprintln!("Expected key");
@@ -269,6 +269,7 @@ fn put_repo_key_value(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) 
                     }
                 }
             };
+            let key_clone = key.clone();
             let record = kad::Record {
                 key,
                 value,
@@ -281,6 +282,9 @@ fn put_repo_key_value(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) 
                     kad::Quorum::N(NonZeroUsize::new(1).expect("REASON")),
                 )
                 .expect("Failed to store record locally.");
+            kademlia
+                .start_providing(key_clone)
+                .expect("Failed to start providing key");
         }
         _ => {
             eprintln!("put_repo_key_value failed!");
