@@ -2457,6 +2457,7 @@ dependencies = [
  "gnostr",
  "hex",
  "libp2p 0.54.2",
+ "serde",
  "sha2 0.10.9",
  "tokio",
  "tracing",

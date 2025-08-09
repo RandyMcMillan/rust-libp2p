@@ -9,17 +9,18 @@ license = "MIT"
 release = false
 
 [dependencies]
-tokio = { workspace = true, features = ["full"] }
 async-trait = "0.1"
+base64 = "0.22.1"
 futures = { workspace = true }
-libp2p = { path = "../../libp2p", features = [ "tokio", "dns", "kad", "mdns", "noise", "macros", "tcp", "yamux"] }
-tracing = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["env-filter"] }
-sha2 = "0.10.9"
 git2 = "0.18.3"
 gnostr = "0.0.111"
 hex = "0.4.3"
-base64 = "0.22.1"
+libp2p = { path = "../../libp2p", features = [ "cbor", "tokio", "dns", "kad", "mdns", "noise", "macros", "request-response", "tcp", "yamux"] }
+serde = { version = "1.0.203", features = ["derive"] }
+sha2 = "0.10.9"
+tokio = { workspace = true, features = ["full"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
 
 [lints]
 workspace = true
