@@ -19,10 +19,11 @@
 // DEALINGS IN THE SOFTWARE.
 
 #![doc = include_str!("../README.md")]
-
+use hex;
 use std::error::Error;
 
 use futures::stream::StreamExt;
+//use libp2p::identity::Keypair;
 use libp2p::{
     kad,
     kad::{store::MemoryStore, Mode},
@@ -51,6 +52,15 @@ fn hash_folder_name(path: &Path) -> Option<String> {
     }
 }
 
+fn create_keypair_from_hex_string(
+    secret_key_hex: &str,
+) -> Result<libp2p::identity::Keypair, hex::FromHexError> {
+    // The secret key for Ed25519 is 32 bytes.
+    let mut secret_key_bytes = [0u8; 32];
+    hex::decode_to_slice(secret_key_hex, &mut secret_key_bytes)?;
+    Ok(libp2p::identity::Keypair::ed25519_from_bytes(secret_key_bytes).unwrap())
+}
+
 use git2::Repository;
 
 fn get_repo_name<P: AsRef<Path>>(repo_path: P) -> Result<Option<String>, git2::Error> {
@@ -59,7 +69,7 @@ fn get_repo_name<P: AsRef<Path>>(repo_path: P) -> Result<Option<String>, git2::E
     // Get the path of the repository
     let path = repo.path();
 
-    println!("{}", path.display());
+    //println!("{}", path.display());
     // The repo path typically ends in `.git`.
     // We want the parent directory's name.
     let parent_path = path.parent().unwrap_or(path);
@@ -80,15 +90,21 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let my_path = Path::new(".");
 
-    println!("{}", my_path.display());
+    //println!("{}", my_path.display());
     let repo_name = get_repo_name(my_path);
     let repo_name_clone = get_repo_name(my_path);
-    println!("{}",repo_name_clone.unwrap().ok_or("")?);
+    //println!("{}", repo_name_clone.unwrap().ok_or("")?);
+    let mut keypair: libp2p::identity::Keypair;
     if let Some(hash) = hash_folder_name(Path::new(&repo_name?.expect("").to_string())) {
         println!("SHA256 hash of folder name: {}", hash);
+    keypair = create_keypair_from_hex_string(&hash).expect("");
     } else {
         println!("Could not get folder name.");
     }
+
+
+
+
 
     // We create a custom network behaviour that combines Kademlia and mDNS.
     #[derive(NetworkBehaviour)]
