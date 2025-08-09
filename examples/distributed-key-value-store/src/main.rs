@@ -89,51 +89,44 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let my_path = Path::new(".");
 
-    //println!("{}", my_path.display());
     let repo_name = get_repo_name(my_path);
+
     let repo_name_clone = get_repo_name(my_path);
+
     println!("repo_name={}", repo_name_clone.unwrap().ok_or("")?);
+
     let keypair: libp2p::identity::Keypair;
+
     if let Some(hash) = hash_folder_name(Path::new(&repo_name?.expect("").to_string())) {
         println!("hash_folder_name={}", hash);
+
         keypair = create_keypair_from_hex_string(&hash).expect("");
+
         println!("{:?}", keypair.public());
 
-        // Encode the keypair to a protobuf byte vector
         let protobuf_bytes = keypair
             .to_protobuf_encoding()
             .expect("should be able to encode keypair");
 
-        // Encode the bytes to a Base64 string for printing or storage
         let base64_string = general_purpose::STANDARD.encode(&protobuf_bytes);
 
-        println!(
+        print!(
             "Keypair as Base64 string (Protobuf encoded):\n{}",
             base64_string
         );
 
-        // 3. Decode the Base64 string back to bytes
         let decoded_bytes = general_purpose::STANDARD
             .decode(&base64_string)
             .expect("should be able to decode base64");
 
-        // 4. Deserialize the bytes back into a Keypair
-        // DO NOT try to convert `decoded_bytes` to a String.
         let rehydrated_keypair = libp2p::identity::Keypair::from_protobuf_encoding(&decoded_bytes)
             .expect("should be able to decode protobuf bytes");
 
-        // 5. Verify that the rehydrated keypair is the same
         let rehydrated_public_key = rehydrated_keypair.public();
-        println!("\nRehydrated Public Key: {:?}", rehydrated_public_key);
+        println!("\nRehydrated Public Key:\n{:?}", rehydrated_public_key);
 
         assert_eq!(keypair.public(), rehydrated_public_key);
         println!("Successfully rehydrated the keypair! They are identical.");
-
-        //let base64_string = general_purpose::STANDARD.decode(&protobuf_bytes);
-
-        //println!("Keypair as Base64 string (Protobuf encoded):\n{}", base64_string);
-
-        // The `decode` method returns a Result. We use `match` to handle success and failure.
     } else {
         println!("Could not get folder name.");
     }
