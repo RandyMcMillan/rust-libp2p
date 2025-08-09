@@ -22,6 +22,7 @@
 use base64::{engine::general_purpose, Engine as _};
 use hex;
 use std::error::Error;
+use std::num::NonZeroUsize;
 
 use futures::stream::StreamExt;
 //use libp2p::identity::Keypair;
@@ -92,10 +93,39 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let repo_name = get_repo_name(my_path);
 
     let repo_name_clone = get_repo_name(my_path);
+    let repo_name_clone2 = get_repo_name(my_path);
 
     println!("repo_name={}", repo_name_clone.unwrap().ok_or("")?);
 
     let keypair: libp2p::identity::Keypair;
+
+    // We create a custom network behaviour that combines Kademlia and mDNS.
+    #[derive(NetworkBehaviour)]
+    struct Behaviour {
+        kademlia: kad::Behaviour<MemoryStore>,
+        mdns: mdns::tokio::Behaviour,
+    }
+
+    let mut swarm = libp2p::SwarmBuilder::with_new_identity()
+        .with_tokio()
+        .with_tcp(
+            tcp::Config::default(),
+            noise::Config::new,
+            yamux::Config::default,
+        )?
+        .with_behaviour(|key| {
+            Ok(Behaviour {
+                kademlia: kad::Behaviour::new(
+                    key.public().to_peer_id(),
+                    MemoryStore::new(key.public().to_peer_id()),
+                ),
+                mdns: mdns::tokio::Behaviour::new(
+                    mdns::Config::default(),
+                    key.public().to_peer_id(),
+                )?,
+            })
+        })?
+        .build();
 
     if let Some(hash) = hash_folder_name(Path::new(&repo_name?.expect("").to_string())) {
         println!("hash_folder_name={}", hash);
@@ -127,37 +157,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
         assert_eq!(keypair.public(), rehydrated_public_key);
         println!("Successfully rehydrated the keypair! They are identical.");
+
+        let line = format!("PUT {:?} {:?}", hash, repo_name_clone2.unwrap().unwrap());
+        println!("{}", line);
+        put_repo_key_value(&mut swarm.behaviour_mut().kademlia, line.replace("\"", ""));
     } else {
         println!("Could not get folder name.");
     }
-
-    // We create a custom network behaviour that combines Kademlia and mDNS.
-    #[derive(NetworkBehaviour)]
-    struct Behaviour {
-        kademlia: kad::Behaviour<MemoryStore>,
-        mdns: mdns::tokio::Behaviour,
-    }
-
-    let mut swarm = libp2p::SwarmBuilder::with_new_identity()
-        .with_tokio()
-        .with_tcp(
-            tcp::Config::default(),
-            noise::Config::new,
-            yamux::Config::default,
-        )?
-        .with_behaviour(|key| {
-            Ok(Behaviour {
-                kademlia: kad::Behaviour::new(
-                    key.public().to_peer_id(),
-                    MemoryStore::new(key.public().to_peer_id()),
-                ),
-                mdns: mdns::tokio::Behaviour::new(
-                    mdns::Config::default(),
-                    key.public().to_peer_id(),
-                )?,
-            })
-        })?
-        .build();
 
     swarm.behaviour_mut().kademlia.set_mode(Some(Mode::Server));
 
@@ -238,6 +244,49 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 }
 
+fn put_repo_key_value(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
+    println!("line={}", line.replace("\"", ""));
+    let line = format!("{}", line);
+    println!("line={}", line.replace("\"", ""));
+    let mut args = line.split(' ');
+    match args.next() {
+        Some("PUT") => {
+            let key = {
+                match args.next() {
+                    Some(key) => kad::RecordKey::new(&key),
+                    None => {
+                        eprintln!("Expected key");
+                        return;
+                    }
+                }
+            };
+            let value = {
+                match args.next() {
+                    Some(value) => value.as_bytes().to_vec(),
+                    None => {
+                        eprintln!("Expected value");
+                        return;
+                    }
+                }
+            };
+            let record = kad::Record {
+                key,
+                value,
+                publisher: None,
+                expires: None,
+            };
+            kademlia
+                .put_record(
+                    record,
+                    kad::Quorum::N(NonZeroUsize::new(1).expect("REASON")),
+                )
+                .expect("Failed to store record locally.");
+        }
+        _ => {
+            eprintln!("put_repo_key_value failed!");
+        }
+    }
+}
 fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
     let mut args = line.split(' ');
 
