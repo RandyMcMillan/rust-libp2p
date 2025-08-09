@@ -19,6 +19,7 @@ sha2 = "0.10.9"
 git2 = "0.18.3"
 gnostr = "0.0.111"
 hex = "0.4.3"
+base64 = "0.22.1"
 
 [lints]
 workspace = true
