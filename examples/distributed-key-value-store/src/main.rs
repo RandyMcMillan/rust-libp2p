@@ -36,11 +36,59 @@ use tokio::{
 };
 use tracing_subscriber::EnvFilter;
 
+
+use sha2::{Sha256, Digest};
+use std::path::Path;
+
+fn hash_folder_name(path: &Path) -> Option<String> {
+    if let Some(folder_name) = path.file_name().and_then(|name| name.to_str()) {
+        let mut hasher = Sha256::new();
+        hasher.update(folder_name.as_bytes());
+        let result = hasher.finalize();
+        Some(format!("{:x}", result))
+    } else {
+        None
+    }
+}
+
+use git2::Repository;
+
+fn get_repo_name<P: AsRef<Path>>(repo_path: P) -> Result<Option<String>, git2::Error> {
+    let repo = Repository::discover(repo_path)?;
+
+    // Get the path of the repository
+    let path = repo.path();
+
+    println!("{}", path.display());
+    // The repo path typically ends in `.git`.
+    // We want the parent directory's name.
+    let parent_path = path.parent().unwrap_or(path);
+
+    // Use `file_name()` to get the last component of the path.
+    // `to_str()` is used to convert OsStr to a string slice.
+    let repo_name = parent_path.file_name().and_then(|name| name.to_str());
+
+    Ok(repo_name.map(String::from))
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let _ = tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
         .try_init();
+
+
+    let my_path = Path::new(".");
+
+    println!("{}", my_path.display());
+    let repo_name = get_repo_name(my_path);
+    let repo_name_clone = get_repo_name(my_path);
+    println!("{}",repo_name_clone.unwrap().ok_or("")?);
+    if let Some(hash) = hash_folder_name(Path::new(&repo_name?.expect("").to_string())) {
+        println!("SHA256 hash of folder name: {}", hash);
+    } else {
+        println!("Could not get folder name.");
+    }
 
     // We create a custom network behaviour that combines Kademlia and mDNS.
     #[derive(NetworkBehaviour)]
@@ -180,7 +228,9 @@ fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
         Some("PUT") => {
             let key = {
                 match args.next() {
-                    Some(key) => kad::RecordKey::new(&key),
+                    Some(key) => {
+                        kad::RecordKey::new(&key)
+                    },
                     None => {
                         eprintln!("Expected key");
                         return;
