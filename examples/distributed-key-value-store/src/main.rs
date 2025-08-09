@@ -224,7 +224,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         );
                     }
                     kad::QueryResult::PutRecord(Err(err)) => {
-                        eprintln!("Quorum may have failed to put record: {err:?}");
+                        //eprintln!("Quorum may have failed to put record: {err:?}");
                     }
                     kad::QueryResult::StartProviding(Ok(kad::AddProviderOk { key })) => {
                         println!(
