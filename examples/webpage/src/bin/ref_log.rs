@@ -21,7 +21,6 @@ fn main() -> io::Result<()> {
         }
     }
 
-
     if let Ok(entries) = fs::read_dir(current_dir) {
         for entry in entries {
             if let Ok(entry) = entry {
@@ -35,7 +34,6 @@ fn main() -> io::Result<()> {
             }
         }
     }
-
 
     Ok(())
 }
@@ -93,8 +91,15 @@ fn parse_log_entry(line: &str) -> Option<LogEntry> {
     let timestamp_str = parts.get(3).unwrap_or(&"").to_string();
     let timezone_str = parts.get(4).unwrap_or(&"").to_string();
 
-    let message_start = parts.iter().position(|&p| p.starts_with("message:")).unwrap_or(parts.len());
-    let message = parts[message_start..].join(" ").replace("message:", "").trim().to_string();
+    let message_start = parts
+        .iter()
+        .position(|&p| p.starts_with("message:"))
+        .unwrap_or(parts.len());
+    let message = parts[message_start..]
+        .join(" ")
+        .replace("message:", "")
+        .trim()
+        .to_string();
 
     Some(LogEntry {
         old_commit,
