@@ -1,30 +1,8 @@
-// Copyright 20l9 Parity Technologies (UK) Ltd.
-//
-// Permission is hereby granted, free of charge, to any person obtaining a
-// copy of this software and associated documentation files (the "Software"),
-// to deal in the Software without restriction, including without limitation
-// the rights to use, copy, modify, merge, publish, distribute, sublicense,
-// and/or sell copies of the Software, and to permit persons to whom the
-// Software is furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
-// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-// DEALINGS IN THE SOFTWARE.
-
 #![doc = include_str!("../README.md")]
 use base64::{engine::general_purpose, Engine as _};
-use hex;
-use std::error::Error;
-use std::num::NonZeroUsize;
-
 use futures::stream::StreamExt;
+use git2::Repository;
+use hex;
 //use libp2p::identity::Keypair;
 use libp2p::{
     kad,
@@ -33,14 +11,15 @@ use libp2p::{
     swarm::{NetworkBehaviour, SwarmEvent},
     tcp, yamux,
 };
+use sha2::{Digest, Sha256};
+use std::error::Error;
+use std::num::NonZeroUsize;
+use std::path::Path;
 use tokio::{
     io::{self, AsyncBufReadExt},
     select,
 };
 use tracing_subscriber::EnvFilter;
-
-use sha2::{Digest, Sha256};
-use std::path::Path;
 
 fn hash_folder_name(path: &Path) -> Option<String> {
     if let Some(folder_name) = path.file_name().and_then(|name| name.to_str()) {
@@ -62,9 +41,8 @@ fn create_keypair_from_hex_string(
     Ok(libp2p::identity::Keypair::ed25519_from_bytes(secret_key_bytes).unwrap())
 }
 
-use git2::Repository;
-
 fn get_repo_name<P: AsRef<Path>>(repo_path: P) -> Result<Option<String>, git2::Error> {
+    //discover repo root
     let repo = Repository::discover(repo_path)?;
 
     // Get the path of the repository
