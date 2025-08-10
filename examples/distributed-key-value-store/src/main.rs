@@ -69,10 +69,6 @@ fn get_repo_name<P: AsRef<Path>>(repo_path: P) -> Result<Option<String>, git2::E
     Ok(repo_name.map(String::from))
 }
 
-fn convert_str_to_result_string_from(s: &str) -> io::Result<String> {
-    Ok(String::from(s))
-}
-
 #[tokio::main]
 pub async fn main() -> Result<(), Box<dyn Error>> {
     let _ = tracing_subscriber::fmt()
