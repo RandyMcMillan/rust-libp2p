@@ -88,10 +88,7 @@ pub struct Client {
 
 impl Client {
     /// Listen for incoming connections on the given address.
-    pub async fn start_listening(
-        &mut self,
-        addr: Multiaddr,
-    ) -> Result<(), Box<dyn Error + Send>> {
+    pub async fn start_listening(&mut self, addr: Multiaddr) -> Result<(), Box<dyn Error + Send>> {
         let (sender, receiver) = oneshot::channel();
         self.sender
             .send(Command::StartListening { addr, sender })
@@ -157,11 +154,7 @@ impl Client {
     }
 
     /// Respond with the provided file content to the given request.
-    pub async fn respond_file(
-        &mut self,
-        file: Vec<u8>,
-        channel: ResponseChannel<FileResponse>,
-    ) {
+    pub async fn respond_file(&mut self, file: Vec<u8>, channel: ResponseChannel<FileResponse>) {
         self.sender
             .send(Command::RespondFile { file, channel })
             .await

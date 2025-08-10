@@ -1,6 +1,7 @@
 #![doc = include_str!("../README.md")]
+use crate::file_transfer::file_transfer;
 mod file_transfer;
-//mod network;
+
 use base64::{engine::general_purpose, Engine as _};
 use futures::stream::StreamExt;
 use git2::Repository;
@@ -69,6 +70,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .with_env_filter(EnvFilter::from_default_env())
         .try_init();
 
+    //let file_transfer = file_transfer().await;
     let my_path = Path::new(".");
 
     let repo_name = get_repo_name(my_path);
@@ -272,6 +274,7 @@ fn put_repo_key_value(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) 
         }
     }
 }
+
 fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
     let mut args = line.split(' ');
 
