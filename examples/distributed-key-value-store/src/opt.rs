@@ -31,4 +31,8 @@ pub(crate) enum CliArgument {
         #[clap(long)]
         name: String,
     },
+    Kv {
+        #[clap(long)]
+        get: String,
+    },
 }

@@ -149,17 +149,21 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
 
             std::io::stdout().write_all(&file_content)?;
         }
+        CliArgument::Kv { get } => {
+            println!("get={}", get);
+            key_value(&format!("GET {}", get));
+        }
     }
 
     Ok(())
 }
 
-//#[tokio::main]
-async fn key_value() -> Result<(), Box<dyn Error>> {
+async fn key_value(get: &str) -> Result<(), Box<dyn Error>> {
     let _ = tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
         .try_init();
 
+    println!("get={}", get);
     //let file_transfer = file_transfer().await;
     let my_path = Path::new(".");
 
