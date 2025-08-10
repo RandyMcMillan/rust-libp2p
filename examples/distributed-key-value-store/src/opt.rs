@@ -33,6 +33,6 @@ pub(crate) enum CliArgument {
     },
     Kv {
         #[clap(long)]
-        get: String,
+        get: Option<String>,
     },
 }

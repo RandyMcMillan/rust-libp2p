@@ -1,7 +1,6 @@
 #![doc = include_str!("../README.md")]
 mod opt;
 
-
 use clap::Parser;
 use futures::{prelude::*, StreamExt};
 use key_value_store::{new, Event};
@@ -26,11 +25,11 @@ use libp2p::{
 use sha2::{Digest, Sha256};
 use std::num::NonZeroUsize;
 use std::path::Path;
+use tokio::io::stdin;
 use tokio::{
     io::{self, AsyncBufReadExt, BufReader},
     select,
 };
-use tokio::io::stdin;
 
 fn hash_folder_name(path: &Path) -> Option<String> {
     if let Some(folder_name) = path.file_name().and_then(|name| name.to_str()) {
@@ -157,9 +156,9 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
             std::io::stdout().write_all(&file_content)?;
         }
         CliArgument::Kv { get } => {
-//            let get = "rust-libp2p";
-            println!("get={}", get);
-            key_value(&format!("GET {}", get)).await;
+            //            let get = "rust-libp2p";
+            println!("get={}", get.clone().unwrap());
+            key_value(&format!("GET {}", get.unwrap())).await;
             //key_value(&format!("{}", get)).await;
         }
     }
@@ -275,8 +274,6 @@ async fn key_value(get: &str) -> Result<(), Box<dyn Error>> {
             }
         }
     }
-
-
 
     //handle input from user
     let mut stdin = io::BufReader::new(io::stdin()).lines();
