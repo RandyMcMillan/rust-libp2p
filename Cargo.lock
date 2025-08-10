@@ -4996,6 +4996,7 @@ dependencies = [
  "base64 0.22.1",
  "clap 4.5.43",
  "futures",
+ "futures-util",
  "git2",
  "gnostr",
  "hex",

@@ -156,8 +156,8 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
 
             std::io::stdout().write_all(&file_content)?;
         }
-        CliArgument::Kv { /*get*/ } => {
-            let get = "rust-libp2p";
+        CliArgument::Kv { get } => {
+//            let get = "rust-libp2p";
             println!("get={}", get);
             key_value(&format!("GET {}", get)).await;
             //key_value(&format!("{}", get)).await;
@@ -248,11 +248,17 @@ async fn key_value(get: &str) -> Result<(), Box<dyn Error>> {
         println!("Could not get folder name.");
     }
 
+    //prime network
+    //prime network
+    //prime network
     swarm.behaviour_mut().kademlia.set_mode(Some(Mode::Server));
     // Listen on all interfaces and whatever port the OS assigns.
     swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
+    //
+    //
+    //
 
-    //handle initial function call get value
+    //handle initial function key_value(get: &str) {...}
     let byte_slice: &[u8] = get.as_bytes();
     let buf_reader = BufReader::new(byte_slice);
     let mut lines_stream = buf_reader.lines();
@@ -270,10 +276,15 @@ async fn key_value(get: &str) -> Result<(), Box<dyn Error>> {
         }
     }
 
+
+
+    //handle input from user
+    let mut stdin = io::BufReader::new(io::stdin()).lines();
+
     // Kick it off.
     loop {
         select! {
-        Ok(Some(line)) = lines_stream.next_line() => {
+        Ok(Some(line)) = stdin.next_line() => {
             handle_input_line(&mut swarm.behaviour_mut().kademlia, line);
         }
         event = swarm.select_next_some() => match event {
