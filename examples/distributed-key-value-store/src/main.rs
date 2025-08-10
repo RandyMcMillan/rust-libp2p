@@ -151,10 +151,11 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
             std::io::stdout().write_all(&file_content)?;
         }
         CliArgument::Kv { get } => {
-            //            let get = "rust-libp2p";
-            println!("get={}", get.clone().unwrap());
-            if let Ok(_result) = key_value(&format!("GET {}", get.unwrap())).await {};
-            //key_value(&format!("{}", get)).await;
+            println!("get={}", get.clone().unwrap_or("gnostr".to_string()));
+            if let Ok(_result) =
+                key_value(&format!("GET {}", get.unwrap_or("gnostr".to_string()))).await
+            {
+            };
         }
     }
 
