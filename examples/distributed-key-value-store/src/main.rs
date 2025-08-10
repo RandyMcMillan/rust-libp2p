@@ -153,7 +153,7 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
         CliArgument::Kv { get } => {
             //            let get = "rust-libp2p";
             println!("get={}", get.clone().unwrap());
-            if let Ok(result) = key_value(&format!("GET {}", get.unwrap())).await {};
+            if let Ok(_result) = key_value(&format!("GET {}", get.unwrap())).await {};
             //key_value(&format!("{}", get)).await;
         }
     }
@@ -263,9 +263,8 @@ async fn key_value(get: &str) -> Result<(), Box<dyn Error>> {
                 println!("Read an async line: {line}");
                 handle_input_line(&mut swarm.behaviour_mut().kademlia, line);
             }
-            e => {
-                eprintln!("Error reading line: {e}");
-                break; // Stop processing on the first error.
+            _ => {
+                break;
             }
         }
     }
@@ -323,8 +322,8 @@ async fn key_value(get: &str) -> Result<(), Box<dyn Error>> {
                             std::str::from_utf8(key.as_ref()).unwrap()
                         );
                     }
-                    kad::QueryResult::PutRecord(Err(err)) => {
-                        //eprintln!("Quorum may have failed to put record: {err:?}");
+                    kad::QueryResult::PutRecord(Err(_err)) => {
+                        //eprintln!("Quorum may have failed to put record: {_err:?}");
                     }
                     kad::QueryResult::StartProviding(Ok(kad::AddProviderOk { key })) => {
                         println!(
