@@ -25,7 +25,6 @@ use libp2p::{
 use sha2::{Digest, Sha256};
 use std::num::NonZeroUsize;
 use std::path::Path;
-use tokio::io::stdin;
 use tokio::{
     io::{self, AsyncBufReadExt, BufReader},
     select,
@@ -158,7 +157,7 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
         CliArgument::Kv { get } => {
             //            let get = "rust-libp2p";
             println!("get={}", get.clone().unwrap());
-            key_value(&format!("GET {}", get.unwrap())).await;
+            let Some(result) = key_value(&format!("GET {}", get.unwrap())).await;
             //key_value(&format!("{}", get)).await;
         }
     }
