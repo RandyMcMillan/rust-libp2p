@@ -1,8 +1,8 @@
 #![doc = include_str!("../README.md")]
-mod file_transfer;
-
+mod opt;
+use crate::opt::CliArgument;
+use crate::opt::Opt;
 use base64::{engine::general_purpose, Engine as _};
-use futures::stream::StreamExt;
 use git2::Repository;
 //use libp2p::identity::Keypair;
 //use libp2p::request_response::Behaviour;
@@ -14,14 +14,12 @@ use libp2p::{
     tcp, yamux,
 };
 use sha2::{Digest, Sha256};
-use std::error::Error;
 use std::num::NonZeroUsize;
 use std::path::Path;
 use tokio::{
     io::{self, AsyncBufReadExt},
     select,
 };
-use tracing_subscriber::EnvFilter;
 
 fn hash_folder_name(path: &Path) -> Option<String> {
     if let Some(folder_name) = path.file_name().and_then(|name| name.to_str()) {
@@ -62,8 +60,102 @@ fn get_repo_name<P: AsRef<Path>>(repo_path: P) -> Result<Option<String>, git2::E
     Ok(repo_name.map(String::from))
 }
 
+use clap::Parser;
+use futures::{prelude::*, StreamExt};
+use key_value_store::{new, Event};
+use libp2p::multiaddr::Protocol;
+use std::{error::Error, io::Write};
+use tokio::task::spawn;
+use tracing_subscriber::EnvFilter;
+
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+pub async fn main() -> Result<(), Box<dyn Error>> {
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .try_init();
+
+    let opt = Opt::parse();
+
+    let (mut network_client, mut network_events, network_event_loop) =
+        new(opt.secret_key_seed).await?;
+
+    // Spawn the network task for it to run in the background.
+    spawn(network_event_loop.run());
+
+    // In case a listen address was provided use it, otherwise listen on any
+    // address.
+    match opt.listen_address {
+        Some(addr) => network_client
+            .start_listening(addr)
+            .await
+            .expect("Listening not to fail."),
+        None => network_client
+            .start_listening("/ip4/0.0.0.0/tcp/0".parse()?)
+            .await
+            .expect("Listening not to fail."),
+    };
+
+    // In case the user provided an address of a peer on the CLI, dial it.
+    if let Some(addr) = opt.peer {
+        let Some(Protocol::P2p(peer_id)) = addr.iter().last() else {
+            return Err("Expect peer multiaddr to contain peer ID.".into());
+        };
+        network_client
+            .dial(peer_id, addr)
+            .await
+            .expect("Dial to succeed");
+    }
+
+    match opt.argument {
+        // Providing a file.
+        CliArgument::Provide { path, name } => {
+            // Advertise oneself as a provider of the file on the DHT.
+            network_client.start_providing(name.clone()).await;
+
+            loop {
+                match network_events.next().await {
+                    // Reply with the content of the file on incoming requests.
+                    Some(Event::InboundRequest { request, channel }) => {
+                        if request == name {
+                            network_client
+                                .respond_file(std::fs::read(&path)?, channel)
+                                .await;
+                        }
+                    }
+                    e => todo!("{:?}", e),
+                }
+            }
+        }
+        // Locating and getting a file.
+        CliArgument::Get { name } => {
+            // Locate all nodes providing the file.
+            let providers = network_client.get_providers(name.clone()).await;
+            if providers.is_empty() {
+                return Err(format!("Could not find provider for file {name}.").into());
+            }
+
+            // Request the content of the file from each node.
+            let requests = providers.into_iter().map(|p| {
+                let mut network_client = network_client.clone();
+                let name = name.clone();
+                async move { network_client.request_file(p, name).await }.boxed()
+            });
+
+            // Await the requests, ignore the remaining once a single one succeeds.
+            let file_content = futures::future::select_ok(requests)
+                .await
+                .map_err(|_| "None of the providers returned file.")?
+                .0;
+
+            std::io::stdout().write_all(&file_content)?;
+        }
+    }
+
+    Ok(())
+}
+
+//#[tokio::main]
+async fn key_value() -> Result<(), Box<dyn Error>> {
     let _ = tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
         .try_init();
@@ -121,9 +213,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
         let base64_string = general_purpose::STANDARD.encode(&protobuf_bytes);
 
-        print!(
-            "Keypair as Base64 string (Protobuf encoded):\n{base64_string}"
-        );
+        print!("Keypair as Base64 string (Protobuf encoded):\n{base64_string}");
 
         let decoded_bytes = general_purpose::STANDARD
             .decode(&base64_string)
