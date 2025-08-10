@@ -27,7 +27,7 @@ use serde::{Deserialize, Serialize};
 /// - The network event stream, e.g. for incoming requests.
 ///
 /// - The network task driving the network itself.
-pub(crate) async fn new(
+pub async fn new(
     secret_key_seed: Option<u8>,
 ) -> Result<(Client, impl Stream<Item = Event>, EventLoop), Box<dyn Error>> {
     // Create a public/private key pair, either random or based on a seed.
@@ -82,13 +82,13 @@ pub(crate) async fn new(
 }
 
 #[derive(Clone)]
-pub(crate) struct Client {
+pub struct Client {
     sender: mpsc::Sender<Command>,
 }
 
 impl Client {
     /// Listen for incoming connections on the given address.
-    pub(crate) async fn start_listening(
+    pub async fn start_listening(
         &mut self,
         addr: Multiaddr,
     ) -> Result<(), Box<dyn Error + Send>> {
@@ -101,7 +101,7 @@ impl Client {
     }
 
     /// Dial the given peer at the given address.
-    pub(crate) async fn dial(
+    pub async fn dial(
         &mut self,
         peer_id: PeerId,
         peer_addr: Multiaddr,
@@ -119,7 +119,7 @@ impl Client {
     }
 
     /// Advertise the local node as the provider of the given file on the DHT.
-    pub(crate) async fn start_providing(&mut self, file_name: String) {
+    pub async fn start_providing(&mut self, file_name: String) {
         let (sender, receiver) = oneshot::channel();
         self.sender
             .send(Command::StartProviding { file_name, sender })
@@ -129,7 +129,7 @@ impl Client {
     }
 
     /// Find the providers for the given file on the DHT.
-    pub(crate) async fn get_providers(&mut self, file_name: String) -> HashSet<PeerId> {
+    pub async fn get_providers(&mut self, file_name: String) -> HashSet<PeerId> {
         let (sender, receiver) = oneshot::channel();
         self.sender
             .send(Command::GetProviders { file_name, sender })
@@ -139,7 +139,7 @@ impl Client {
     }
 
     /// Request the content of the given file from the given peer.
-    pub(crate) async fn request_file(
+    pub async fn request_file(
         &mut self,
         peer: PeerId,
         file_name: String,
@@ -157,7 +157,7 @@ impl Client {
     }
 
     /// Respond with the provided file content to the given request.
-    pub(crate) async fn respond_file(
+    pub async fn respond_file(
         &mut self,
         file: Vec<u8>,
         channel: ResponseChannel<FileResponse>,
@@ -169,7 +169,7 @@ impl Client {
     }
 }
 
-pub(crate) struct EventLoop {
+pub struct EventLoop {
     swarm: Swarm<Behaviour>,
     command_receiver: mpsc::Receiver<Command>,
     event_sender: mpsc::Sender<Event>,
@@ -197,7 +197,7 @@ impl EventLoop {
         }
     }
 
-    pub(crate) async fn run(mut self) {
+    pub async fn run(mut self) {
         loop {
             tokio::select! {
                 event = self.swarm.select_next_some() => self.handle_event(event).await,
@@ -438,7 +438,7 @@ enum Command {
 }
 
 #[derive(Debug)]
-pub(crate) enum Event {
+pub enum Event {
     InboundRequest {
         request: String,
         channel: ResponseChannel<FileResponse>,
@@ -449,4 +449,4 @@ pub(crate) enum Event {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct FileRequest(String);
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) struct FileResponse(Vec<u8>);
+pub struct FileResponse(Vec<u8>);

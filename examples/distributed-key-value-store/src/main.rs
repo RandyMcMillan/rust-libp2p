@@ -1,11 +1,12 @@
 #![doc = include_str!("../README.md")]
-mod network;
+mod file_transfer;
+//mod network;
 use base64::{engine::general_purpose, Engine as _};
 use futures::stream::StreamExt;
 use git2::Repository;
 use hex;
 //use libp2p::identity::Keypair;
-use libp2p::request_response::Behaviour;
+//use libp2p::request_response::Behaviour;
 use libp2p::{
     kad,
     kad::{store::MemoryStore, Mode},

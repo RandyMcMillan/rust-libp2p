@@ -2447,24 +2447,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "distributed-key-value-store-example"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "base64 0.22.1",
- "futures",
- "git2",
- "gnostr",
- "hex",
- "libp2p 0.54.2",
- "serde",
- "sha2 0.10.9",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "dns-lookup"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5004,6 +4986,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f6d5ed8676d904364de097082f4e7d240b571b67989ced0240f08b7f966f940"
 dependencies = [
  "cpufeatures",
+]
+
+[[package]]
+name = "key-value-store"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "base64 0.22.1",
+ "clap 4.5.43",
+ "futures",
+ "git2",
+ "gnostr",
+ "hex",
+ "libp2p 0.54.2",
+ "serde",
+ "sha2 0.10.9",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
