@@ -436,7 +436,7 @@ fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
                 }
             };
             let record = kad::Record {
-                key,
+                key: key.clone(),
                 value,
                 publisher: None,
                 expires: None,
@@ -444,6 +444,9 @@ fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
             kademlia
                 .put_record(record, kad::Quorum::One)
                 .expect("Failed to store record locally.");
+            kademlia
+                .start_providing(key)
+                .expect("Failed to start providing key");
         }
         Some("PUT_PROVIDER") => {
             let key = {
