@@ -166,7 +166,7 @@ async fn key_value(get: &str) -> Result<(), Box<dyn Error>> {
         .with_env_filter(EnvFilter::from_default_env())
         .try_init();
 
-    println!("get={}", get);
+    println!("get={get}");
     //let file_transfer = file_transfer().await;
     let my_path = Path::new(".");
 
@@ -260,11 +260,11 @@ async fn key_value(get: &str) -> Result<(), Box<dyn Error>> {
     while let Ok(Some(line_result)) = lines_stream.next_line().await {
         match line_result {
             line => {
-                println!("Read an async line: {}", line);
+                println!("Read an async line: {line}");
                 handle_input_line(&mut swarm.behaviour_mut().kademlia, line);
             }
             e => {
-                eprintln!("Error reading line: {}", e);
+                eprintln!("Error reading line: {e}");
                 break; // Stop processing on the first error.
             }
         }
