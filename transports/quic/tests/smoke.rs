@@ -1,36 +1,22 @@
 #![cfg(any(feature = "async-std", feature = "tokio"))]
 
-use std::{
-    future::Future,
-    io,
-    num::NonZeroU8,
-    pin::Pin,
-    sync::{Arc, Mutex},
-    task::Poll,
-    time::Duration,
-};
+use std::{future::Future, io, num::NonZeroU8, pin::Pin, task::Poll, time::Duration};
 
 use futures::{
     channel::{mpsc, oneshot},
     future,
-    future::{poll_fn, BoxFuture, Either},
+    future::{poll_fn, Either},
     stream::StreamExt,
     AsyncReadExt, AsyncWriteExt, FutureExt, SinkExt,
 };
-use futures_timer::Delay;
 use libp2p_core::{
     multiaddr::Protocol,
     muxing::{StreamMuxerBox, StreamMuxerExt, SubstreamBox},
-    transport::{
-        Boxed, DialOpts, ListenerId, OrTransport, PortUse, TransportError, TransportEvent,
-    },
-    upgrade, Endpoint, Multiaddr, Transport,
+    transport::{Boxed, DialOpts, ListenerId, PortUse, TransportEvent},
+    Endpoint, Multiaddr, Transport,
 };
 use libp2p_identity::PeerId;
-use libp2p_noise as noise;
 use libp2p_quic as quic;
-use libp2p_tcp as tcp;
-use libp2p_yamux as yamux;
 use quic::Provider;
 use rand::RngCore;
 use tracing_subscriber::EnvFilter;

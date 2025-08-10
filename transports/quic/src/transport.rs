@@ -748,7 +748,6 @@ fn socketaddr_to_multiaddr(socket_addr: &SocketAddr, version: ProtocolVersion) -
 #[cfg(test)]
 #[cfg(any(feature = "async-std", feature = "tokio"))]
 mod tests {
-    use futures::future::poll_fn;
 
     use super::*;
 
