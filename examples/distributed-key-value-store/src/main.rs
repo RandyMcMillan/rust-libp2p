@@ -157,7 +157,7 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
         CliArgument::Kv { get } => {
             //            let get = "rust-libp2p";
             println!("get={}", get.clone().unwrap());
-            let Some(result) = key_value(&format!("GET {}", get.unwrap())).await;
+            if let Ok(result) = key_value(&format!("GET {}", get.unwrap())).await {};
             //key_value(&format!("{}", get)).await;
         }
     }
