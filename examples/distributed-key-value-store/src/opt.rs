@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use libp2p::Multiaddr;
 #[derive(Parser, Debug)]
 #[clap(name = "libp2p file sharing example")]
-pub(crate) struct Opt {
+pub struct Opt {
     /// Fixed value to generate deterministic peer ID.
     #[clap(long)]
     pub secret_key_seed: Option<u8>,
@@ -20,7 +20,7 @@ pub(crate) struct Opt {
 }
 
 #[derive(Debug, Parser)]
-pub(crate) enum CliArgument {
+pub enum CliArgument {
     Provide {
         #[clap(long)]
         path: PathBuf,

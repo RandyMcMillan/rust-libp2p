@@ -20,6 +20,9 @@ use libp2p::{
 };
 use serde::{Deserialize, Serialize};
 
+pub mod handle_input;
+pub mod opt;
+
 /// Creates the network components, namely:
 ///
 /// - The network client to interact with the network layer from anywhere within your application.
