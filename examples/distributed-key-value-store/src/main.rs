@@ -1,5 +1,15 @@
 #![doc = include_str!("../README.md")]
 mod opt;
+
+
+use clap::Parser;
+use futures::{prelude::*, StreamExt};
+use key_value_store::{new, Event};
+use libp2p::multiaddr::Protocol;
+use std::{error::Error, io::Write};
+use tokio::task::spawn;
+use tracing_subscriber::EnvFilter;
+
 use crate::opt::CliArgument;
 use crate::opt::Opt;
 use base64::{engine::general_purpose, Engine as _};
@@ -17,9 +27,10 @@ use sha2::{Digest, Sha256};
 use std::num::NonZeroUsize;
 use std::path::Path;
 use tokio::{
-    io::{self, AsyncBufReadExt},
+    io::{self, AsyncBufReadExt, BufReader},
     select,
 };
+use tokio::io::stdin;
 
 fn hash_folder_name(path: &Path) -> Option<String> {
     if let Some(folder_name) = path.file_name().and_then(|name| name.to_str()) {
@@ -60,13 +71,9 @@ fn get_repo_name<P: AsRef<Path>>(repo_path: P) -> Result<Option<String>, git2::E
     Ok(repo_name.map(String::from))
 }
 
-use clap::Parser;
-use futures::{prelude::*, StreamExt};
-use key_value_store::{new, Event};
-use libp2p::multiaddr::Protocol;
-use std::{error::Error, io::Write};
-use tokio::task::spawn;
-use tracing_subscriber::EnvFilter;
+fn convert_str_to_result_string_from(s: &str) -> io::Result<String> {
+    Ok(String::from(s))
+}
 
 #[tokio::main]
 pub async fn main() -> Result<(), Box<dyn Error>> {
@@ -149,9 +156,11 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
 
             std::io::stdout().write_all(&file_content)?;
         }
-        CliArgument::Kv { get } => {
+        CliArgument::Kv { /*get*/ } => {
+            let get = "rust-libp2p";
             println!("get={}", get);
-            key_value(&format!("GET {}", get));
+            key_value(&format!("GET {}", get)).await;
+            //key_value(&format!("{}", get)).await;
         }
     }
 
@@ -240,17 +249,31 @@ async fn key_value(get: &str) -> Result<(), Box<dyn Error>> {
     }
 
     swarm.behaviour_mut().kademlia.set_mode(Some(Mode::Server));
-
-    // Read full lines from stdin
-    let mut stdin = io::BufReader::new(io::stdin()).lines();
-
     // Listen on all interfaces and whatever port the OS assigns.
     swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
+
+    //handle initial function call get value
+    let byte_slice: &[u8] = get.as_bytes();
+    let buf_reader = BufReader::new(byte_slice);
+    let mut lines_stream = buf_reader.lines();
+    println!("Reading from the mocked async stream:");
+    while let Ok(Some(line_result)) = lines_stream.next_line().await {
+        match line_result {
+            line => {
+                println!("Read an async line: {}", line);
+                handle_input_line(&mut swarm.behaviour_mut().kademlia, line);
+            }
+            e => {
+                eprintln!("Error reading line: {}", e);
+                break; // Stop processing on the first error.
+            }
+        }
+    }
 
     // Kick it off.
     loop {
         select! {
-        Ok(Some(line)) = stdin.next_line() => {
+        Ok(Some(line)) = lines_stream.next_line() => {
             handle_input_line(&mut swarm.behaviour_mut().kademlia, line);
         }
         event = swarm.select_next_some() => match event {
