@@ -1,6 +1,5 @@
 use regex::Regex;
 use std::fs;
-use std::path::Path;
 
 fn generate_web_sys_objects(
     js_folder: &str,

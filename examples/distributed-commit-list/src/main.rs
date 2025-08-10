@@ -2,10 +2,9 @@
 use clap::Parser;
 use git2::{Commit, Diff, DiffOptions, ObjectType, Oid, Repository, Signature, Time};
 use git2::{DiffFormat, Error as GitError, Pathspec};
-use gnostr::blockheight::{blockheight_async, blockheight_sync};
+use gnostr::blockheight::blockheight_async;
 use gnostr::weeble::{weeble_async /*, weeble_sync*/};
 use gnostr::wobble::{wobble_async /*, wobble_sync*/};
-use gnostr_asyncgit::sync::commit::{padded_commit_id, serialize_commit};
 use hex;
 use std::str;
 use std::{error::Error, time::Duration};
@@ -15,10 +14,7 @@ use std::{error::Error, time::Duration};
 use futures::stream::StreamExt;
 use libp2p::{
     identify, kad,
-    kad::{
-        store::MemoryStore, store::MemoryStoreConfig, store::RecordStore, GetRecordOk, Mode,
-        Quorum, Record,
-    },
+    kad::{store::MemoryStore, store::MemoryStoreConfig, Mode, Record},
     mdns, noise, ping, rendezvous,
     swarm::{NetworkBehaviour, SwarmEvent},
     tcp, yamux, PeerId,
@@ -27,7 +23,7 @@ use tokio::{
     io::{self, AsyncBufReadExt},
     select,
 };
-use tracing::{debug, info, trace, Level};
+use tracing::Level;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{fmt, EnvFilter};
 //use tracing_log::LogTracer;

@@ -1,6 +1,6 @@
 use std::fs::{self, File};
 use std::io::{self, BufRead, BufReader};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 fn main() -> io::Result<()> {
     let mut current_dir = std::env::current_dir()?;

@@ -33,7 +33,7 @@ use futures::stream::StreamExt;
 //use git2::ErrorCode;
 use git2::Repository;
 
-use ureq::{Agent, /*AgentBuilder, */ Error, Response};
+use ureq::{Agent, /*AgentBuilder, */ Error};
 
 use libp2p::{
     gossipsub, mdns, noise,
@@ -44,7 +44,7 @@ use std::env;
 use tokio::{io, io::AsyncBufReadExt, select, task};
 
 use env_logger::{Builder, Env};
-use log::{debug, error, info, trace, warn};
+use log::{debug, error, info, trace};
 use std::env::args;
 
 // We create a custom network behaviour that combines Gossipsub and Mdns.
@@ -306,7 +306,7 @@ async fn main() -> Result<(), Box<dyn StdError>> {
         //print!("308:GNOSTR/{prompt}>");
 
         select! {
-            Ok(Some(mut line)) = stdin.next_line() => {
+            Ok(Some(line)) = stdin.next_line() => {
                 if line.len() == 0 {
                         print!("\nGNOSTR/{prompt}> print help message");
 

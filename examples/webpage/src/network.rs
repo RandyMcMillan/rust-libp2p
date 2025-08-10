@@ -297,7 +297,7 @@ impl EventLoop {
             SwarmEvent::Behaviour(BehaviourEvent::RequestResponse(
                 request_response::Event::ResponseSent { .. },
             )) => {}
-            SwarmEvent::NewListenAddr { address, .. } => {
+            SwarmEvent::NewListenAddr { .. } => {
                 let local_peer_id = *self.swarm.local_peer_id();
                 //eprintln!(
                 //    "Local node is listening on {:?}",
