@@ -7,7 +7,7 @@ use std::{error::Error, io::Write, path::PathBuf};
 use tokio::task::spawn;
 use tracing_subscriber::EnvFilter;
 
-pub async fn file_transfer() -> Result<(), Box<dyn Error>> {
+pub(crate) async fn file_transfer() -> Result<(), Box<dyn Error>> {
     let _ = tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
         .try_init();

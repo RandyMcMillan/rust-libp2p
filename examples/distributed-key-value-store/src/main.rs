@@ -1,11 +1,9 @@
 #![doc = include_str!("../README.md")]
-use crate::file_transfer::file_transfer;
 mod file_transfer;
 
 use base64::{engine::general_purpose, Engine as _};
 use futures::stream::StreamExt;
 use git2::Repository;
-use hex;
 //use libp2p::identity::Keypair;
 //use libp2p::request_response::Behaviour;
 use libp2p::{
@@ -30,7 +28,7 @@ fn hash_folder_name(path: &Path) -> Option<String> {
         let mut hasher = Sha256::new();
         hasher.update(folder_name.as_bytes());
         let result = hasher.finalize();
-        Some(format!("{:x}", result))
+        Some(format!("{result:x}"))
     } else {
         None
     }
@@ -111,7 +109,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .build();
 
     if let Some(hash) = hash_folder_name(Path::new(&repo_name?.expect("").to_string())) {
-        println!("hash_folder_name={}", hash);
+        println!("hash_folder_name={hash}");
 
         keypair = create_keypair_from_hex_string(&hash).expect("");
 
@@ -124,8 +122,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let base64_string = general_purpose::STANDARD.encode(&protobuf_bytes);
 
         print!(
-            "Keypair as Base64 string (Protobuf encoded):\n{}",
-            base64_string
+            "Keypair as Base64 string (Protobuf encoded):\n{base64_string}"
         );
 
         let decoded_bytes = general_purpose::STANDARD
@@ -136,13 +133,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .expect("should be able to decode protobuf bytes");
 
         let rehydrated_public_key = rehydrated_keypair.public();
-        println!("\nRehydrated Public Key:\n{:?}", rehydrated_public_key);
+        println!("\nRehydrated Public Key:\n{rehydrated_public_key:?}");
 
         assert_eq!(keypair.public(), rehydrated_public_key);
         println!("Successfully rehydrated the keypair! They are identical.");
 
         let line = format!("PUT {:?} {:?}", repo_name_clone2.unwrap().unwrap(), hash);
-        println!("{}", line);
+        println!("{line}");
         put_repo_key_value(&mut swarm.behaviour_mut().kademlia, line.replace("\"", ""));
     } else {
         println!("Could not get folder name.");
@@ -229,13 +226,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
 fn put_repo_key_value(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
     println!("line={}", line.replace("\"", ""));
-    let line = format!("{}", line);
+    let line = line.to_string();
     println!("line={}", line.replace("\"", ""));
     let mut args = line.split(' ');
     match args.next() {
         Some("PUT") => {
             let key = {
-                match args.next().clone() {
+                match args.next() {
                     Some(key) => kad::RecordKey::new(&key),
                     None => {
                         eprintln!("Expected key");
