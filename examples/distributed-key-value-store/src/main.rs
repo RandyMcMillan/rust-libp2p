@@ -258,14 +258,10 @@ async fn key_value(get: &str) -> Result<(), Box<dyn Error>> {
     let mut lines_stream = buf_reader.lines();
     println!("Reading from the mocked async stream:");
     while let Ok(Some(line_result)) = lines_stream.next_line().await {
-        match line_result {
-            line => {
-                println!("Read an async line: {line}");
-                handle_input_line(&mut swarm.behaviour_mut().kademlia, line);
-            }
-            _ => {
-                break;
-            }
+        let line = line_result;
+        {
+            println!("Read an async line: {line}");
+            handle_input_line(&mut swarm.behaviour_mut().kademlia, line);
         }
     }
 
