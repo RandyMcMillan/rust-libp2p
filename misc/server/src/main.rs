@@ -1,4 +1,4 @@
-use std::{error::Error, path::PathBuf, str::FromStr};
+use std::{error::Error, path::PathBuf};
 
 use base64::Engine;
 use clap::Parser;
@@ -11,8 +11,8 @@ use libp2p::{
     identity::PeerId,
     kad,
     metrics::{Metrics, Recorder},
-    noise, ping, relay,
-    swarm::{NetworkBehaviour, SwarmEvent},
+    noise,
+    swarm::SwarmEvent,
     tcp, yamux,
 };
 use prometheus_client::{metrics::info::Info, registry::Registry};

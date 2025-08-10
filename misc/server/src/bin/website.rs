@@ -1,10 +1,8 @@
-use anyhow::{anyhow, Result};
-use futures::stream::{StreamExt, TryStreamExt};
+use anyhow::Result;
+use futures::stream::TryStreamExt;
 use ipfs_api::{IpfsApi, IpfsClient};
 use std::path::Path;
-use tokio::fs;
 //use tokio::io;
-use std::env;
 use std::io::Cursor;
 use std::io::{self, Write};
 
