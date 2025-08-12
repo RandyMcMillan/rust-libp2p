@@ -40,23 +40,36 @@ The File Sharing application has the following architectural properties:
 To set up a simple file sharing scenario with a provider and a retriever, follow these steps:
 
 1. **Start a File Provider**: In one terminal, run the following command to start a file provider node:
-   ```sh
-   cargo run -- --listen-address /ip4/127.0.0.1/tcp/40837 \
-             --secret-key-seed 1 \
-             provide \
-             --path <path-to-your-file> \
-             --name <name-for-others-to-find-your-file>
-   ```
-   This command initiates a node that listens on the specified address and provides a file located at the specified path.
+
+<code>
+cargo run --bin file-sharing-example -- --listen-address /ip4/127.0.0.1/tcp/40837 --secret-key-seed 1 provide --path README.md --name README.md
+</code>
+
+```sh
+cargo run --bin file-sharing-example -- --listen-address /ip4/127.0.0.1/tcp/40837 \
+--secret-key-seed 1 \
+provide \
+--path README.md \
+--name README.md
+```
+
+This command initiates a node that listens on the specified address and provides a file located at the specified path.
    The file is identified by the provided name, which allows other nodes to discover and retrieve it.
 
+<code>
+cargo run --bin file-sharing-example -- --peer /ip4/127.0.0.1/tcp/40837/p2p/12D3KooWPjceQrSwdWXPyLLeABRXmuqt69Rg3sBYbU1Nft9HyQ6X get --name README.md
+</code>
+
 2. **Start a File Retriever**: In another terminal, run the following command to start a file retriever node:
-   ```sh
-   cargo run -- --peer /ip4/127.0.0.1/tcp/40837/p2p/12D3KooWPjceQrSwdWXPyLLeABRXmuqt69Rg3sBYbU1Nft9HyQ6X \
-             get \
-             --name <name-for-others-to-find-your-file>
-   ```
-   This command initiates a node that connects to the specified peer (the provider) and requests the file with the given name.
+
+```sh
+cargo run --bin file-sharing-example -- \
+--peer /ip4/127.0.0.1/tcp/40837/p2p/12D3KooWPjceQrSwdWXPyLLeABRXmuqt69Rg3sBYbU1Nft9HyQ6X \
+get \
+--name README.md
+```
+
+This command initiates a node that connects to the specified peer (the provider) and requests the file with the given name.
 
 Note: It is not necessary for the retriever node to be directly connected to the provider.
 As long as both nodes are connected to any node in the same DHT network, the file can be successfully retrieved.
