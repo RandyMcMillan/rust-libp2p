@@ -92,22 +92,26 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .set_mode(Some(Mode::Server));
 
     if let Some(get) = opt.get {
-        println!("get={}", get);
+        let line = format!("GET {}", get);
+        println!("line={}", line);
 
         std::process::exit(0);
     }
     if let Some(get_providers) = opt.get_providers {
-        println!("get_providers={}", get_providers);
+        let line = format!("GET_PROVIDERS {}", get_providers);
+        println!("line={}", line);
 
         std::process::exit(0);
     }
     if let Some(put) = opt.put {
-        println!("put={}", put);
+        let line = format!("PUT {}", put);
+        println!("line={}", line);
 
         std::process::exit(0);
     }
     if let Some(put_provider) = opt.put_provider {
-        println!("put_provider={}", put_provider);
+        let line = format!("PUT_PROVIDER {}", put_provider);
+        println!("line={}", line);
 
         std::process::exit(0);
     }
