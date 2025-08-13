@@ -70,6 +70,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
         std::process::exit(0);
     }
+    if let Some(put) = opt.put {
+        println!("put={}", put);
+
+        std::process::exit(0);
+    }
+    if let Some(put_provider) = opt.put_provider {
+        println!("put_provider={}", put_provider);
+
+        std::process::exit(0);
+    }
     // In case the user provided an address of a peer on the CLI, dial it.
     if let Some(addr) = opt.peer {
         let Some(Protocol::P2p(peer_id)) = addr.iter().last() else {
@@ -226,6 +236,9 @@ struct Opt {
 
     #[clap(long)]
     put: Option<String>,
+
+    #[clap(long)]
+    put_provider: Option<String>,
 
     #[clap(long)]
     peer: Option<Multiaddr>,
