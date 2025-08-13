@@ -79,19 +79,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let opt = Opt::parse();
     // In case a listen address was provided use it, otherwise listen on any
     // address.
-    match Some(opt.listen_address.clone()) {
-        Some(addr) => kv_swarm
-            .listen_on(addr.expect(""))
-            //.await
-            .expect("Listening not to fail."),
-        Some(_) => kv_swarm
+    if let Some(address) = opt.listen_address.clone() {
+        kv_swarm
+            .listen_on(address.clone())
+            .expect("Listening not to fail.");
+    } else {
+        kv_swarm
             .listen_on("/ip4/0.0.0.0/tcp/0".parse()?)
-            //.await
-            .expect("Listening not to fail."),
-        None => kv_swarm
-            .listen_on("/ip4/0.0.0.0/tcp/0".parse()?)
-            //.await
-            .expect("Listening not to fail."),
+            .expect("Listening not to fail.");
     };
     kv_swarm
         .behaviour_mut()
@@ -302,7 +297,7 @@ struct Opt {
     #[clap(long)]
     peer: Option<Multiaddr>,
 
-    #[clap(long)]
+    #[clap(long, default_value = "/ip4/0.0.0.0/tcp/0")]
     listen_address: Option<Multiaddr>,
 
     #[clap(subcommand)]
