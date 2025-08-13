@@ -221,7 +221,12 @@ impl EventLoop {
         loop {
             tokio::select! {
 
-                    line = stdin.select_next_some() => handle_input_line(&mut self.swarm.behaviour_mut().kademlia, line.expect("Stdin not to close")),
+            line =
+            stdin.select_next_some() =>
+            handle_input_line(&mut self
+                .swarm
+                .behaviour_mut()
+                .kademlia, line.expect("Stdin not to close")),
 
             event = self.swarm.select_next_some() => self.handle_event(event).await,
                             command = self.command_receiver.next() => match command {
