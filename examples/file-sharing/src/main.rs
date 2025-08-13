@@ -60,6 +60,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .expect("Listening not to fail."),
     };
 
+    if let Some(get) = opt.get {
+
+    println!("get={}", get);
+    }
     // In case the user provided an address of a peer on the CLI, dial it.
     if let Some(addr) = opt.peer {
         let Some(Protocol::P2p(peer_id)) = addr.iter().last() else {
