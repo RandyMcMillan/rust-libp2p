@@ -77,8 +77,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .build();
 
     let opt = Opt::parse();
-    // In case a listen address was provided use it, otherwise listen on any
-    // address.
     if let Some(address) = opt.listen_address.clone() {
         kv_swarm
             .listen_on(address.clone())
