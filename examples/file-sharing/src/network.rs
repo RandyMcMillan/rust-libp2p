@@ -4,23 +4,23 @@ use futures::{
     prelude::*,
     select, StreamExt,
 };
-use libp2p::kad::store::MemoryStore;
-use libp2p::kad::Mode;
 use std::error::Error;
 use std::time::Duration;
 use tracing_subscriber::EnvFilter;
 
 use libp2p::{
     core::Multiaddr,
-    identity, kad, mdns,
+    identity, kad,
+    kad::store::MemoryStore,
+    kad::Mode,
+    mdns,
     multiaddr::Protocol,
     noise,
     request_response::{self, OutboundRequestId, ProtocolSupport, ResponseChannel},
     swarm::{NetworkBehaviour, Swarm, SwarmEvent},
-    tcp, yamux, PeerId,
+    tcp, yamux, PeerId, StreamProtocol,
 };
 
-use libp2p::StreamProtocol;
 use serde::{Deserialize, Serialize};
 use std::collections::{hash_map, HashMap, HashSet};
 
@@ -65,6 +65,11 @@ pub(crate) async fn new(
                 )],
                 request_response::Config::default(),
             ),
+            mdns: mdns::async_io::Behaviour::new(
+                mdns::Config::default(),
+                key.public().to_peer_id(),
+            )
+            .expect(""),
         })?
         .with_swarm_config(|c| c.with_idle_connection_timeout(Duration::from_secs(60)))
         .build();
@@ -410,6 +415,7 @@ impl EventLoop {
 struct Behaviour {
     request_response: request_response::cbor::Behaviour<FileRequest, FileResponse>,
     kademlia: kad::Behaviour<kad::store::MemoryStore>,
+    mdns: mdns::async_io::Behaviour,
 }
 
 #[derive(Debug)]

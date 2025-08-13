@@ -167,7 +167,7 @@ fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
                 }
             };
             let record = kad::Record {
-                key,
+                key: key.clone(),
                 value,
                 publisher: None,
                 expires: None,
@@ -175,6 +175,9 @@ fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
             kademlia
                 .put_record(record, kad::Quorum::One)
                 .expect("Failed to store record locally.");
+            kademlia
+                .start_providing(key)
+                .expect("Failed to start providing key");
         }
         Some("PUT_PROVIDER") => {
             let key = {
@@ -203,6 +206,12 @@ struct Opt {
     /// Fixed value to generate deterministic peer ID.
     #[clap(long)]
     secret_key_seed: Option<u8>,
+    #[clap(long)]
+    get: Option<String>,
+    #[clap(long)]
+    get_providers: Option<String>,
+    #[clap(long)]
+    put: Option<String>,
 
     #[clap(long)]
     peer: Option<Multiaddr>,
