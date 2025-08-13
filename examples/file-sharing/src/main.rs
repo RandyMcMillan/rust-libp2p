@@ -94,25 +94,25 @@ async fn main() -> Result<(), Box<dyn Error>> {
     if let Some(get) = opt.get {
         let line = format!("GET {}", get);
         println!("line={}", line);
-
+        handle_input_line(&mut kv_swarm.behaviour_mut().kademlia, line);
         std::process::exit(0);
     }
     if let Some(get_providers) = opt.get_providers {
         let line = format!("GET_PROVIDERS {}", get_providers);
         println!("line={}", line);
-
+        handle_input_line(&mut kv_swarm.behaviour_mut().kademlia, line);
         std::process::exit(0);
     }
     if let Some(put) = opt.put {
         let line = format!("PUT {}", put);
         println!("line={}", line);
-
+        handle_input_line(&mut kv_swarm.behaviour_mut().kademlia, line);
         std::process::exit(0);
     }
     if let Some(put_provider) = opt.put_provider {
         let line = format!("PUT_PROVIDER {}", put_provider);
         println!("line={}", line);
-
+        handle_input_line(&mut kv_swarm.behaviour_mut().kademlia, line);
         std::process::exit(0);
     }
 
