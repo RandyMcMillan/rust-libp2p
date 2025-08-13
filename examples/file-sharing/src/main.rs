@@ -73,7 +73,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     match opt.argument {
         // Providing a file.
-        CliArgument::Provide { path, name } => {
+        Some(CliArgument::Provide { path, name }) => {
             // Advertise oneself as a provider of the file on the DHT.
             network_client.start_providing(name.clone()).await;
 
@@ -92,7 +92,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             }
         }
         // Locating and getting a file.
-        CliArgument::Get { name } => {
+        Some(CliArgument::Get { name }) => {
             // Locate all nodes providing the file.
             let providers = network_client.get_providers(name.clone()).await;
             if providers.is_empty() {
@@ -114,6 +114,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
             std::io::stdout().write_all(&file_content)?;
         }
+        None => {}
     }
 
     Ok(())
@@ -206,10 +207,13 @@ struct Opt {
     /// Fixed value to generate deterministic peer ID.
     #[clap(long)]
     secret_key_seed: Option<u8>,
+
     #[clap(long)]
     get: Option<String>,
+
     #[clap(long)]
     get_providers: Option<String>,
+
     #[clap(long)]
     put: Option<String>,
 
@@ -220,7 +224,7 @@ struct Opt {
     listen_address: Option<Multiaddr>,
 
     #[clap(subcommand)]
-    argument: CliArgument,
+    argument: Option<CliArgument>,
 }
 
 #[derive(Debug, Parser)]

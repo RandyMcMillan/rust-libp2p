@@ -79,6 +79,7 @@ pub(crate) async fn new(
         .kademlia
         .set_mode(Some(kad::Mode::Server));
 
+    //
     let (command_sender, command_receiver) = mpsc::channel(0);
     let (event_sender, event_receiver) = mpsc::channel(0);
 
