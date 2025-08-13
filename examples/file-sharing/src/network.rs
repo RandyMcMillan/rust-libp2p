@@ -1,10 +1,18 @@
-use futures::channel::{mpsc, oneshot};
-use futures::prelude::*;
-use futures::StreamExt;
+use async_std::io;
+use futures::{
+    channel::{mpsc, oneshot},
+    prelude::*,
+    select, StreamExt,
+};
+use libp2p::kad::store::MemoryStore;
+use libp2p::kad::Mode;
+use std::error::Error;
+use std::time::Duration;
+use tracing_subscriber::EnvFilter;
 
 use libp2p::{
     core::Multiaddr,
-    identity, kad,
+    identity, kad, mdns,
     multiaddr::Protocol,
     noise,
     request_response::{self, OutboundRequestId, ProtocolSupport, ResponseChannel},
@@ -15,8 +23,6 @@ use libp2p::{
 use libp2p::StreamProtocol;
 use serde::{Deserialize, Serialize};
 use std::collections::{hash_map, HashMap, HashSet};
-use std::error::Error;
-use std::time::Duration;
 
 /// Creates the network components, namely:
 ///

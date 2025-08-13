@@ -9,11 +9,14 @@ license = "MIT"
 release = false
 
 [dependencies]
+async-std = { version = "1.12", features = ["attributes"] }
+async-trait = "0.1"
+clap = { version = "4.5.6", features = ["derive"] }
+
+futures = { workspace = true }
+libp2p = { path = "../../libp2p", features = [ "async-std", "dns", "kad", "mdns", "noise", "macros", "tcp", "yamux", "tokio", "cbor", "dns", "kad", "noise", "macros", "request-response", "tcp", "websocket", "yamux"] }
 serde = { version = "1.0", features = ["derive"] }
 tokio = { workspace = true, features = ["full"] }
-clap = { version = "4.5.6", features = ["derive"] }
-futures = { workspace = true }
-libp2p = { path = "../../libp2p", features = [ "tokio", "cbor", "dns", "kad", "noise", "macros", "request-response", "tcp", "websocket", "yamux"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 void = "1.0.2"

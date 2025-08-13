@@ -27,7 +27,7 @@ use tokio::task::spawn;
 
 use futures::prelude::*;
 use futures::StreamExt;
-use libp2p::{core::Multiaddr, multiaddr::Protocol};
+use libp2p::{core::Multiaddr, kad, kad::store::MemoryStore, multiaddr::Protocol};
 use std::error::Error;
 use std::io::Write;
 use std::path::PathBuf;
@@ -117,6 +117,84 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     Ok(())
+}
+
+fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
+    let mut args = line.split(' ');
+
+    match args.next() {
+        Some("GET") => {
+            let key = {
+                match args.next() {
+                    Some(key) => kad::RecordKey::new(&key),
+                    None => {
+                        eprintln!("Expected key");
+                        return;
+                    }
+                }
+            };
+            kademlia.get_record(key);
+        }
+        Some("GET_PROVIDERS") => {
+            let key = {
+                match args.next() {
+                    Some(key) => kad::RecordKey::new(&key),
+                    None => {
+                        eprintln!("Expected key");
+                        return;
+                    }
+                }
+            };
+            kademlia.get_providers(key);
+        }
+        Some("PUT") => {
+            let key = {
+                match args.next() {
+                    Some(key) => kad::RecordKey::new(&key),
+                    None => {
+                        eprintln!("Expected key");
+                        return;
+                    }
+                }
+            };
+            let value = {
+                match args.next() {
+                    Some(value) => value.as_bytes().to_vec(),
+                    None => {
+                        eprintln!("Expected value");
+                        return;
+                    }
+                }
+            };
+            let record = kad::Record {
+                key,
+                value,
+                publisher: None,
+                expires: None,
+            };
+            kademlia
+                .put_record(record, kad::Quorum::One)
+                .expect("Failed to store record locally.");
+        }
+        Some("PUT_PROVIDER") => {
+            let key = {
+                match args.next() {
+                    Some(key) => kad::RecordKey::new(&key),
+                    None => {
+                        eprintln!("Expected key");
+                        return;
+                    }
+                }
+            };
+
+            kademlia
+                .start_providing(key)
+                .expect("Failed to start providing key");
+        }
+        _ => {
+            eprintln!("expected GET, GET_PROVIDERS, PUT or PUT_PROVIDER");
+        }
+    }
 }
 
 #[derive(Parser, Debug)]
