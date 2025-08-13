@@ -23,15 +23,23 @@
 mod network;
 
 use clap::Parser;
-use tokio::task::spawn;
-
 use futures::prelude::*;
 use futures::StreamExt;
-use libp2p::{core::Multiaddr, kad, kad::store::MemoryStore, multiaddr::Protocol};
+use libp2p::{core::Multiaddr, kad, kad::store::MemoryStore, kad::Mode, multiaddr::Protocol};
 use std::error::Error;
 use std::io::Write;
 use std::path::PathBuf;
+use tokio::task::spawn;
+use tokio::time::Duration;
 use tracing_subscriber::EnvFilter;
+
+use async_std::io;
+use futures::{prelude::*, select};
+use libp2p::{
+    mdns, noise,
+    swarm::{NetworkBehaviour, SwarmEvent},
+    tcp, yamux,
+};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -39,26 +47,56 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .with_env_filter(EnvFilter::from_default_env())
         .try_init();
 
+    // We create a custom network behaviour that combines Kademlia and mDNS.
+    #[derive(NetworkBehaviour)]
+    struct Behaviour {
+        kademlia: kad::Behaviour<MemoryStore>,
+        mdns: mdns::async_io::Behaviour,
+    }
+
+    let mut kv_swarm = libp2p::SwarmBuilder::with_new_identity()
+        .with_async_std()
+        .with_tcp(
+            tcp::Config::default(),
+            noise::Config::new,
+            yamux::Config::default,
+        )?
+        .with_behaviour(|key| {
+            Ok(Behaviour {
+                kademlia: kad::Behaviour::new(
+                    key.public().to_peer_id(),
+                    MemoryStore::new(key.public().to_peer_id()),
+                ),
+                mdns: mdns::async_io::Behaviour::new(
+                    mdns::Config::default(),
+                    key.public().to_peer_id(),
+                )?,
+            })
+        })?
+        .with_swarm_config(|c| c.with_idle_connection_timeout(Duration::from_secs(60)))
+        .build();
+
     let opt = Opt::parse();
-
-    let (mut network_client, mut network_events, network_event_loop) =
-        network::new(opt.secret_key_seed).await?;
-
-    // Spawn the network task for it to run in the background.
-    spawn(network_event_loop.run());
-
     // In case a listen address was provided use it, otherwise listen on any
     // address.
-    match opt.listen_address {
-        Some(addr) => network_client
-            .start_listening(addr)
-            .await
+    match Some(opt.listen_address.clone()) {
+        Some(addr) => kv_swarm
+            .listen_on(addr.expect(""))
+            //.await
             .expect("Listening not to fail."),
-        None => network_client
-            .start_listening("/ip4/0.0.0.0/tcp/0".parse()?)
-            .await
+        Some(_) => kv_swarm
+            .listen_on("/ip4/0.0.0.0/tcp/0".parse()?)
+            //.await
+            .expect("Listening not to fail."),
+        None => kv_swarm
+            .listen_on("/ip4/0.0.0.0/tcp/0".parse()?)
+            //.await
             .expect("Listening not to fail."),
     };
+    kv_swarm
+        .behaviour_mut()
+        .kademlia
+        .set_mode(Some(Mode::Server));
 
     if let Some(get) = opt.get {
         println!("get={}", get);
@@ -80,6 +118,27 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
         std::process::exit(0);
     }
+
+    //intercept prior to file_share
+    let (mut network_client, mut network_events, network_event_loop) =
+        network::new(opt.secret_key_seed).await?;
+
+    // Spawn the network task for it to run in the background.
+    spawn(network_event_loop.run());
+
+    // In case a listen address was provided use it, otherwise listen on any
+    // address.
+    match opt.listen_address {
+        Some(addr) => network_client
+            .start_listening(addr)
+            .await
+            .expect("Listening not to fail."),
+        None => network_client
+            .start_listening("/ip4/0.0.0.0/tcp/0".parse()?)
+            .await
+            .expect("Listening not to fail."),
+    };
+
     // In case the user provided an address of a peer on the CLI, dial it.
     if let Some(addr) = opt.peer {
         let Some(Protocol::P2p(peer_id)) = addr.iter().last() else {

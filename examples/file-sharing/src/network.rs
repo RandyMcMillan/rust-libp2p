@@ -3,18 +3,14 @@ use async_std::io;
 use futures::{
     channel::{mpsc, oneshot},
     prelude::*,
-    select, StreamExt,
+    StreamExt,
 };
 use std::error::Error;
 use std::time::Duration;
-use tracing_subscriber::EnvFilter;
 
 use libp2p::{
     core::Multiaddr,
-    identity, kad,
-    kad::store::MemoryStore,
-    kad::Mode,
-    mdns,
+    identity, kad, mdns,
     multiaddr::Protocol,
     noise,
     request_response::{self, OutboundRequestId, ProtocolSupport, ResponseChannel},
