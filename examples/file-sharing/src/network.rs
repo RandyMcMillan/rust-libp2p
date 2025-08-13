@@ -1,3 +1,4 @@
+use crate::handle_input_line;
 use async_std::io;
 use futures::{
     channel::{mpsc, oneshot},
@@ -219,13 +220,16 @@ impl EventLoop {
 
         loop {
             tokio::select! {
-                event = self.swarm.select_next_some() => self.handle_event(event).await,
-                command = self.command_receiver.next() => match command {
-                    Some(c) => self.handle_command(c).await,
-                    // Command channel closed, thus shutting down the network event loop.
-                    None=>  return,
-                },
-            }
+
+                    line = stdin.select_next_some() => handle_input_line(&mut self.swarm.behaviour_mut().kademlia, line.expect("Stdin not to close")),
+
+            event = self.swarm.select_next_some() => self.handle_event(event).await,
+                            command = self.command_receiver.next() => match command {
+                                Some(c) => self.handle_command(c).await,
+                                // Command channel closed, thus shutting down the network event loop.
+                                None=>  return,
+                            },
+                        }
         }
     }
 
