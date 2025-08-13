@@ -209,6 +209,14 @@ impl EventLoop {
     }
 
     pub(crate) async fn run(mut self) {
+        // Read full lines from stdin
+        let mut stdin = io::BufReader::new(io::stdin()).lines().fuse();
+
+        // Listen on all interfaces and whatever port the OS assigns.
+        let _ = self
+            .swarm
+            .listen_on("/ip4/0.0.0.0/tcp/0".parse().expect(""));
+
         loop {
             tokio::select! {
                 event = self.swarm.select_next_some() => self.handle_event(event).await,
@@ -338,7 +346,7 @@ impl EventLoop {
                 peer_id: Some(peer_id),
                 ..
             } => eprintln!("Dialing {peer_id}"),
-            e => panic!("{e:?}"),
+            _ => {} //e => panic!("{e:?}"),
         }
     }
 
