@@ -61,12 +61,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
     };
 
     if let Some(get) = opt.get {
+        println!("get={}", get);
 
-    println!("get={}", get);
-    
+        std::process::exit(0);
+    }
+    if let Some(get_providers) = opt.get_providers {
+        println!("get_providers={}", get_providers);
 
-std::process::exit(0);
-}
+        std::process::exit(0);
+    }
     // In case the user provided an address of a peer on the CLI, dial it.
     if let Some(addr) = opt.peer {
         let Some(Protocol::P2p(peer_id)) = addr.iter().last() else {
