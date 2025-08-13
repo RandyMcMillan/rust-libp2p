@@ -104,7 +104,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         std::process::exit(0);
     }
     if let Some(put) = opt.put {
-        let line = format!("PUT {}", put);
+        let line = format!("PUT {:?}", put);
         println!("line={}", line);
         handle_input_line(&mut kv_swarm.behaviour_mut().kademlia, line);
         std::process::exit(0);
@@ -290,8 +290,8 @@ struct Opt {
     #[clap(long)]
     get_providers: Option<String>,
 
-    #[clap(long)]
-    put: Option<String>,
+    #[clap(long, num_args = 2)]
+    put: Option<Vec<String>>,
 
     #[clap(long)]
     put_provider: Option<String>,
