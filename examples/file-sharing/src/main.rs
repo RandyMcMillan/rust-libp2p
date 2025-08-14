@@ -107,13 +107,87 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let line = format!("PUT {:?}", put);
         println!("line={}", line);
         handle_input_line(&mut kv_swarm.behaviour_mut().kademlia, line);
-        std::process::exit(0);
+        //std::process::exit(0);
     }
     if let Some(put_provider) = opt.put_provider {
         let line = format!("PUT_PROVIDER {}", put_provider);
         println!("line={}", line);
         handle_input_line(&mut kv_swarm.behaviour_mut().kademlia, line);
-        std::process::exit(0);
+        //std::process::exit(0);
+    }
+
+    // Read full lines from stdin
+    let mut stdin = io::BufReader::new(io::stdin()).lines().fuse();
+
+    // Listen on all interfaces and whatever port the OS assigns.
+    kv_swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
+
+    // Kick it off.
+    loop {
+        select! {
+        line = stdin.select_next_some() => handle_input_line(&mut kv_swarm.behaviour_mut().kademlia, line.expect("Stdin not to close")),
+        event = kv_swarm.select_next_some() => match event {
+            SwarmEvent::NewListenAddr { address, .. } => {
+                println!("Listening in {address:?}");
+            },
+            SwarmEvent::Behaviour(BehaviourEvent::Mdns(mdns::Event::Discovered(list))) => {
+                for (peer_id, multiaddr) in list {
+                    kv_swarm.behaviour_mut().kademlia.add_address(&peer_id, multiaddr);
+                }
+            }
+            SwarmEvent::Behaviour(BehaviourEvent::Kademlia(kad::Event::OutboundQueryProgressed { result, ..})) => {
+                match result {
+                    kad::QueryResult::GetProviders(Ok(kad::GetProvidersOk::FoundProviders { key, providers, .. })) => {
+                        for peer in providers {
+                            println!(
+                                "Peer {peer:?} provides key {:?}",
+                                std::str::from_utf8(key.as_ref()).unwrap()
+                            );
+                        }
+                    }
+                    kad::QueryResult::GetProviders(Err(err)) => {
+                        eprintln!("Failed to get providers: {err:?}");
+                    }
+                    kad::QueryResult::GetRecord(Ok(
+                        kad::GetRecordOk::FoundRecord(kad::PeerRecord {
+                            record: kad::Record { key, value, .. },
+                            ..
+                        })
+                    )) => {
+                        println!(
+                            "Got record {:?} {:?}",
+                            std::str::from_utf8(key.as_ref()).unwrap(),
+                            std::str::from_utf8(&value).unwrap(),
+                        );
+                    }
+                    kad::QueryResult::GetRecord(Ok(_)) => {}
+                    kad::QueryResult::GetRecord(Err(err)) => {
+                        eprintln!("Failed to get record: {err:?}");
+                    }
+                    kad::QueryResult::PutRecord(Ok(kad::PutRecordOk { key })) => {
+                        println!(
+                            "Successfully put record {:?}",
+                            std::str::from_utf8(key.as_ref()).unwrap()
+                        );
+                    }
+                    kad::QueryResult::PutRecord(Err(err)) => {
+                        eprintln!("Failed to put record: {err:?}");
+                    }
+                    kad::QueryResult::StartProviding(Ok(kad::AddProviderOk { key })) => {
+                        println!(
+                            "Successfully put provider record {:?}",
+                            std::str::from_utf8(key.as_ref()).unwrap()
+                        );
+                    }
+                    kad::QueryResult::StartProviding(Err(err)) => {
+                        eprintln!("Failed to put provider record: {err:?}");
+                    }
+                    _ => {}
+                }
+            }
+            _ => {}
+        }
+        }
     }
 
     //intercept prior to file_share
