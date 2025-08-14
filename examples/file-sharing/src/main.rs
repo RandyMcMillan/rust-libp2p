@@ -47,6 +47,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .with_env_filter(EnvFilter::from_default_env())
         .try_init();
 
+    let mut enter_loop: bool = false;
+
     // We create a custom network behaviour that combines Kademlia and mDNS.
     #[derive(NetworkBehaviour)]
     struct Behaviour {
@@ -75,6 +77,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
         })?
         .with_swarm_config(|c| c.with_idle_connection_timeout(Duration::from_secs(60)))
         .build();
+    kv_swarm
+        .behaviour_mut()
+        .kademlia
+        .set_mode(Some(Mode::Server));
 
     let opt = Opt::parse();
     if let Some(address) = opt.listen_address.clone() {
@@ -86,109 +92,107 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .listen_on("/ip4/0.0.0.0/tcp/0".parse()?)
             .expect("Listening not to fail.");
     };
-    kv_swarm
-        .behaviour_mut()
-        .kademlia
-        .set_mode(Some(Mode::Server));
 
     if let Some(get) = opt.get {
         let line = format!("GET {}", get);
-        println!("line={}", line);
+        println!("98:line={}", line);
         handle_input_line(&mut kv_swarm.behaviour_mut().kademlia, line);
-        std::process::exit(0);
+        enter_loop = true;
     }
     if let Some(get_providers) = opt.get_providers {
         let line = format!("GET_PROVIDERS {}", get_providers);
-        println!("line={}", line);
+        println!("104:line={}", line);
         handle_input_line(&mut kv_swarm.behaviour_mut().kademlia, line);
-        std::process::exit(0);
+        enter_loop = true;
     }
     if let Some(put) = opt.put {
         let line = format!("PUT {:?}", put);
-        println!("line={}", line);
+        println!("110:line={}", line);
         handle_input_line(&mut kv_swarm.behaviour_mut().kademlia, line);
-        //std::process::exit(0);
+        enter_loop = true;
     }
     if let Some(put_provider) = opt.put_provider {
         let line = format!("PUT_PROVIDER {}", put_provider);
-        println!("line={}", line);
+        println!("116:line={}", line);
         handle_input_line(&mut kv_swarm.behaviour_mut().kademlia, line);
-        //std::process::exit(0);
+        enter_loop = true;
     }
 
-    // Read full lines from stdin
-    let mut stdin = io::BufReader::new(io::stdin()).lines().fuse();
+    if enter_loop {
+        // Read full lines from stdin
+        let mut stdin = io::BufReader::new(io::stdin()).lines().fuse();
 
-    // Listen on all interfaces and whatever port the OS assigns.
-    kv_swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
+        // Listen on all interfaces and whatever port the OS assigns.
+        //kv_swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
 
-    // Kick it off.
-    loop {
-        select! {
-        line = stdin.select_next_some() => handle_input_line(&mut kv_swarm.behaviour_mut().kademlia, line.expect("Stdin not to close")),
-        event = kv_swarm.select_next_some() => match event {
-            SwarmEvent::NewListenAddr { address, .. } => {
-                println!("Listening in {address:?}");
-            },
-            SwarmEvent::Behaviour(BehaviourEvent::Mdns(mdns::Event::Discovered(list))) => {
-                for (peer_id, multiaddr) in list {
-                    kv_swarm.behaviour_mut().kademlia.add_address(&peer_id, multiaddr);
+        // Kick it off.
+        loop {
+            select! {
+            line = stdin.select_next_some() => handle_input_line(&mut kv_swarm.behaviour_mut().kademlia, line.expect("Stdin not to close")),
+            event = kv_swarm.select_next_some() => match event {
+                SwarmEvent::NewListenAddr { address, .. } => {
+                    println!("Listening in {address:?}");
+                },
+                SwarmEvent::Behaviour(BehaviourEvent::Mdns(mdns::Event::Discovered(list))) => {
+                    for (peer_id, multiaddr) in list {
+                        kv_swarm.behaviour_mut().kademlia.add_address(&peer_id, multiaddr);
+                    }
                 }
-            }
-            SwarmEvent::Behaviour(BehaviourEvent::Kademlia(kad::Event::OutboundQueryProgressed { result, ..})) => {
-                match result {
-                    kad::QueryResult::GetProviders(Ok(kad::GetProvidersOk::FoundProviders { key, providers, .. })) => {
-                        for peer in providers {
+                SwarmEvent::Behaviour(BehaviourEvent::Kademlia(kad::Event::OutboundQueryProgressed { result, ..})) => {
+                    match result {
+                        kad::QueryResult::GetProviders(Ok(kad::GetProvidersOk::FoundProviders { key, providers, .. })) => {
+                            for peer in providers {
+                                println!(
+                                    "Peer {peer:?} provides key {:?}",
+                                    std::str::from_utf8(key.as_ref()).unwrap()
+                                );
+                            }
+                        }
+                        kad::QueryResult::GetProviders(Err(err)) => {
+                            eprintln!("Failed to get providers: {err:?}");
+                        }
+                        kad::QueryResult::GetRecord(Ok(
+                            kad::GetRecordOk::FoundRecord(kad::PeerRecord {
+                                record: kad::Record { key, value, .. },
+                                ..
+                            })
+                        )) => {
                             println!(
-                                "Peer {peer:?} provides key {:?}",
+                                "Got record {:?} {:?}",
+                                std::str::from_utf8(key.as_ref()).unwrap(),
+                                std::str::from_utf8(&value).unwrap(),
+                            );
+                        }
+                        kad::QueryResult::GetRecord(Ok(_)) => {}
+                        kad::QueryResult::GetRecord(Err(err)) => {
+                            eprintln!("Failed to get record: {err:?}");
+                        }
+                        kad::QueryResult::PutRecord(Ok(kad::PutRecordOk { key })) => {
+                            println!(
+                                "Successfully put record {:?}",
                                 std::str::from_utf8(key.as_ref()).unwrap()
                             );
                         }
+                        kad::QueryResult::PutRecord(Err(err)) => {
+                            eprintln!("Failed to put record: {err:?}");
+                        }
+                        kad::QueryResult::StartProviding(Ok(kad::AddProviderOk { key })) => {
+                            println!(
+                                "Successfully put provider record {:?}",
+                                std::str::from_utf8(key.as_ref()).unwrap()
+                            );
+                        }
+                        kad::QueryResult::StartProviding(Err(err)) => {
+                            eprintln!("Failed to put provider record: {err:?}");
+                        }
+                        _ => {}
                     }
-                    kad::QueryResult::GetProviders(Err(err)) => {
-                        eprintln!("Failed to get providers: {err:?}");
-                    }
-                    kad::QueryResult::GetRecord(Ok(
-                        kad::GetRecordOk::FoundRecord(kad::PeerRecord {
-                            record: kad::Record { key, value, .. },
-                            ..
-                        })
-                    )) => {
-                        println!(
-                            "Got record {:?} {:?}",
-                            std::str::from_utf8(key.as_ref()).unwrap(),
-                            std::str::from_utf8(&value).unwrap(),
-                        );
-                    }
-                    kad::QueryResult::GetRecord(Ok(_)) => {}
-                    kad::QueryResult::GetRecord(Err(err)) => {
-                        eprintln!("Failed to get record: {err:?}");
-                    }
-                    kad::QueryResult::PutRecord(Ok(kad::PutRecordOk { key })) => {
-                        println!(
-                            "Successfully put record {:?}",
-                            std::str::from_utf8(key.as_ref()).unwrap()
-                        );
-                    }
-                    kad::QueryResult::PutRecord(Err(err)) => {
-                        eprintln!("Failed to put record: {err:?}");
-                    }
-                    kad::QueryResult::StartProviding(Ok(kad::AddProviderOk { key })) => {
-                        println!(
-                            "Successfully put provider record {:?}",
-                            std::str::from_utf8(key.as_ref()).unwrap()
-                        );
-                    }
-                    kad::QueryResult::StartProviding(Err(err)) => {
-                        eprintln!("Failed to put provider record: {err:?}");
-                    }
-                    _ => {}
                 }
+                _ => {}
             }
-            _ => {}
-        }
-        }
-    }
+            }
+        } //end loop
+    } //end if enter_loop
 
     //intercept prior to file_share
     let (mut network_client, mut network_events, network_event_loop) =
@@ -271,7 +275,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
-    let mut args = line.split(' ');
+    //let mut args = line.replace("[","").replace("]","").replace(",","").split(' ');
+    let binding = line.replace("[","").replace("]","").replace(",","").replace("\"","");
+    let mut args = binding.split(' ');
 
     match args.next() {
         Some("GET") => {
