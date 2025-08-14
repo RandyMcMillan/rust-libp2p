@@ -76,26 +76,26 @@ async fn main() -> Result<(), Box<dyn Error>> {
     };
 
     if let Some(get) = opt.get {
-        let line = format!("GET {}", get);
-        println!("98:line={}", line);
+        let line = format!("GET {get}");
+        println!("98:line={line}");
         handle_input_line(&mut kv_swarm.behaviour_mut().kademlia, line);
         enter_loop = true;
     }
     if let Some(get_providers) = opt.get_providers {
-        let line = format!("GET_PROVIDERS {}", get_providers);
-        println!("104:line={}", line);
+        let line = format!("GET_PROVIDERS {get_providers}");
+        println!("104:line={line}");
         handle_input_line(&mut kv_swarm.behaviour_mut().kademlia, line);
         enter_loop = true;
     }
     if let Some(put) = opt.put {
-        let line = format!("PUT {:?}", put);
-        println!("110:line={}", line);
+        let line = format!("PUT {put:?}");
+        println!("110:line={line}");
         handle_input_line(&mut kv_swarm.behaviour_mut().kademlia, line);
         enter_loop = true;
     }
     if let Some(put_provider) = opt.put_provider {
-        let line = format!("PUT_PROVIDER {}", put_provider);
-        println!("116:line={}", line);
+        let line = format!("PUT_PROVIDER {put_provider}");
+        println!("116:line={line}");
         handle_input_line(&mut kv_swarm.behaviour_mut().kademlia, line);
         enter_loop = true;
     }
