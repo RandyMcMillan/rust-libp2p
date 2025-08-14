@@ -9,7 +9,7 @@ fn main() {
 
     // 2. We need a PeerId to add. Let's create one from a valid string.
     // Replace this with a real PeerId from your network.
-    let peer_id_string = "QmYyQz4k9T... (your valid PeerId string)";
+    let peer_id_string = "12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN";
 
     // Use from_str to parse the string into a PeerId, handling potential errors.
     let new_peer_id = match PeerId::from_str(peer_id_string) {
