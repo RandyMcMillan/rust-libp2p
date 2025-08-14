@@ -82,53 +82,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Spawn the network task for it to run in the background.
     spawn(network_event_loop.run());
 
-    let mut kv_swarm = libp2p::SwarmBuilder::with_existing_identity(local_key)
-        .with_async_std()
-        .with_tcp(
-            tcp::Config::default(),
-            noise::Config::new,
-            yamux::Config::default,
-        )?
-        .with_behaviour(|key| {
-            Ok(
-                //Behaviour from struct
-                Behaviour {
-                    kademlia: kad::Behaviour::new(
-                        key.public().to_peer_id(),
-                        MemoryStore::new(key.public().to_peer_id()),
-                    ),
-                    mdns: mdns::async_io::Behaviour::new(
-                        mdns::Config::default(),
-                        key.public().to_peer_id(),
-                    )?,
-                    request_response: request_response::cbor::Behaviour::new(
-                        [(
-                            StreamProtocol::new("/file-exchange/1"),
-                            ProtocolSupport::Full,
-                        )],
-                        request_response::Config::default(),
-                    ),
-                },
-            )
-        })?
-        .with_swarm_config(|c| c.with_idle_connection_timeout(Duration::from_secs(60)))
-        .build();
-    kv_swarm
-        .behaviour_mut()
-        .kademlia
-        .set_mode(Some(Mode::Server));
-
-    //let opt = Opt::parse();
-    if let Some(address) = opt.listen_address.clone() {
-        kv_swarm
-            .listen_on(address.clone())
-            .expect("Listening not to fail.");
-    } else {
-        kv_swarm
-            .listen_on("/ip4/0.0.0.0/tcp/0".parse()?)
-            .expect("Listening not to fail.");
-    };
-
     if let Some(ref get) = opt.get {
         let line = format!("GET {get}");
         println!("98:line={line}");
@@ -292,10 +245,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
             if opt.put.is_some() {
                 println!("Get: opt.put={:?}", opt.put);
                 network_client
-                    .start_providing(opt.put.clone().expect("")[0].clone())
+                    .start_providing(opt.put.clone().expect(""))
                     .await;
             } else {
-                network_client.start_providing(name.clone()).await;
+                let put_vec: Vec<String>;
+                put_vec.push(name.clone());
+                network_client.start_providing(put_vec).await;
             };
 
             loop {
