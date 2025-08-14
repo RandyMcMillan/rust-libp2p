@@ -20,7 +20,7 @@
 
 #![doc = include_str!("../README.md")]
 
-mod network;
+use crate::network;
 //use async_std::io;
 use futures::{prelude::*, select};
 use futures::sink::Buffer;
@@ -35,7 +35,7 @@ use std::io::Write;
 use std::path::PathBuf;
 use tracing_subscriber::EnvFilter;
 
-fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
+pub(crate) fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
     let mut args = line.split(' ');
 
     match args.next() {

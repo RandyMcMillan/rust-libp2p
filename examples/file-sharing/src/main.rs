@@ -1,7 +1,8 @@
 #![doc = include_str!("../README.md")]
 
 mod network;
-
+mod handle_input;
+use crate::handle_input::handle_input_line;
 use async_std::io;
 use clap::Parser;
 use futures::{prelude::*, select, StreamExt};
@@ -64,6 +65,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Create a static known PeerId based on given secret
     let local_key: identity::Keypair = generate_ed25519(opt.secret_key_seed.ok_or(..).expect(""));
 
+
+
+
+    //intercept prior to file_share
+    let (mut network_client, mut network_events, network_event_loop) =
+        network::new(opt.secret_key_seed).await?;
+
+    // Spawn the network task for it to run in the background.
+    spawn(network_event_loop.run());
+
+
     let mut kv_swarm = libp2p::SwarmBuilder::with_existing_identity(local_key)
         .with_async_std()
         .with_tcp(
@@ -101,11 +113,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .expect("Listening not to fail.");
     };
 
-    if let Some(get) = opt.get {
+    if let Some(ref get) = opt.get {
         let line = format!("GET {get}");
         println!("98:line={line}");
-        handle_input_line(&mut kv_swarm.behaviour_mut().kademlia, line);
-        enter_loop = true;
+        handle_input::handle_input_line(&mut kv_swarm.behaviour_mut().kademlia, line);
+        if !opt.argument.is_some() {enter_loop = true;}
     }
     if let Some(get_providers) = opt.get_providers {
         let line = format!("GET_PROVIDERS {get_providers}");
@@ -230,8 +242,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
         network_client
             .dial(peer_id, addr.clone())
             .await
-            .expect("208:Dial to succeed");
+            .expect("245:Dial to succeed");
     }
+
+
+
+
+
 
     match opt.argument {
         // Providing a file.
@@ -260,6 +277,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
         // Locating and getting a file.
         Some(CliArgument::Get { name, peer, .. }) => {
+
+            println!("Get: opt.get={:?}", opt.get);
             // Locate all nodes providing the file.
             let mut providers = network_client.get_providers(name.clone()).await;
             if providers.is_empty() {
@@ -328,7 +347,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
+fn _handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
     //let mut args = line.replace("[","").replace("]","").replace(",","").split(' ');
     let binding = line
         .replace("[", "")

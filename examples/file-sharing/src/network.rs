@@ -1,4 +1,4 @@
-use crate::handle_input_line;
+use crate::handle_input::handle_input_line;
 use async_std::io;
 use futures::{
     channel::{mpsc, oneshot},
