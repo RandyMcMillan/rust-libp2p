@@ -2,10 +2,17 @@
 
 mod handle_input;
 mod network;
+
 use crate::handle_input::handle_input_line;
+use crate::network::FileRequest;
+use crate::network::FileResponse;
 use async_std::io;
 use clap::Parser;
-use futures::{prelude::*, select, StreamExt};
+use futures::{
+    channel::{mpsc, oneshot},
+    prelude::*,
+    select, StreamExt,
+};
 use libp2p::{
     core::Multiaddr,
     identity,
@@ -16,8 +23,9 @@ use libp2p::{
     mdns,
     multiaddr::Protocol,
     noise,
+    request_response::{self, OutboundRequestId, ProtocolSupport, ResponseChannel},
     swarm::{NetworkBehaviour, SwarmEvent},
-    tcp, yamux, PeerId,
+    tcp, yamux, PeerId, StreamProtocol,
 };
 use std::collections::HashSet;
 use std::error::Error;
@@ -60,6 +68,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     struct Behaviour {
         kademlia: kad::Behaviour<MemoryStore>,
         mdns: mdns::async_io::Behaviour,
+        request_response: request_response::cbor::Behaviour<FileRequest, FileResponse>,
     }
 
     // Create a static known PeerId based on given secret
@@ -81,16 +90,26 @@ async fn main() -> Result<(), Box<dyn Error>> {
             yamux::Config::default,
         )?
         .with_behaviour(|key| {
-            Ok(Behaviour {
-                kademlia: kad::Behaviour::new(
-                    key.public().to_peer_id(),
-                    MemoryStore::new(key.public().to_peer_id()),
-                ),
-                mdns: mdns::async_io::Behaviour::new(
-                    mdns::Config::default(),
-                    key.public().to_peer_id(),
-                )?,
-            })
+            Ok(
+                //Behaviour from struct
+                Behaviour {
+                    kademlia: kad::Behaviour::new(
+                        key.public().to_peer_id(),
+                        MemoryStore::new(key.public().to_peer_id()),
+                    ),
+                    mdns: mdns::async_io::Behaviour::new(
+                        mdns::Config::default(),
+                        key.public().to_peer_id(),
+                    )?,
+                    request_response: request_response::cbor::Behaviour::new(
+                        [(
+                            StreamProtocol::new("/file-exchange/1"),
+                            ProtocolSupport::Full,
+                        )],
+                        request_response::Config::default(),
+                    ),
+                },
+            )
         })?
         .with_swarm_config(|c| c.with_idle_connection_timeout(Duration::from_secs(60)))
         .build();
