@@ -1,7 +1,7 @@
 #![doc = include_str!("../README.md")]
 
-mod network;
 mod handle_input;
+mod network;
 use crate::handle_input::handle_input_line;
 use async_std::io;
 use clap::Parser;
@@ -65,16 +65,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Create a static known PeerId based on given secret
     let local_key: identity::Keypair = generate_ed25519(opt.secret_key_seed.ok_or(..).expect(""));
 
-
-
-
     //intercept prior to file_share
     let (mut network_client, mut network_events, network_event_loop) =
         network::new(opt.secret_key_seed).await?;
 
+    println!("{:?}", network_client);
     // Spawn the network task for it to run in the background.
     spawn(network_event_loop.run());
-
 
     let mut kv_swarm = libp2p::SwarmBuilder::with_existing_identity(local_key)
         .with_async_std()
@@ -117,25 +114,33 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let line = format!("GET {get}");
         println!("98:line={line}");
         handle_input::handle_input_line(&mut kv_swarm.behaviour_mut().kademlia, line);
-        if !opt.argument.is_some() {enter_loop = true;}
+        if !opt.argument.is_some() {
+            enter_loop = true;
+        }
     }
-    if let Some(get_providers) = opt.get_providers {
+    if let Some(ref get_providers) = opt.get_providers {
         let line = format!("GET_PROVIDERS {get_providers}");
         println!("104:line={line}");
         handle_input_line(&mut kv_swarm.behaviour_mut().kademlia, line);
-        enter_loop = true;
+        if !opt.argument.is_some() {
+            enter_loop = true;
+        }
     }
-    if let Some(put) = opt.put {
+    if let Some(ref put) = opt.put {
         let line = format!("PUT {put:?}");
         println!("110:line={line}");
         handle_input_line(&mut kv_swarm.behaviour_mut().kademlia, line);
-        enter_loop = true;
+        if !opt.argument.is_some() {
+            enter_loop = true;
+        }
     }
-    if let Some(put_provider) = opt.put_provider {
+    if let Some(ref put_provider) = opt.put_provider {
         let line = format!("PUT_PROVIDER {put_provider}");
         println!("116:line={line}");
         handle_input_line(&mut kv_swarm.behaviour_mut().kademlia, line);
-        enter_loop = true;
+        if !opt.argument.is_some() {
+            enter_loop = true;
+        }
     }
 
     if enter_loop {
@@ -150,16 +155,20 @@ async fn main() -> Result<(), Box<dyn Error>> {
             select! {
             line = stdin.select_next_some() => handle_input_line(&mut kv_swarm.behaviour_mut().kademlia, line.expect("Stdin not to close")),
             event = kv_swarm.select_next_some() => match event {
+                //
                 SwarmEvent::NewListenAddr { address, .. } => {
                     println!("Listening in {address:?}");
                 },
+                //
                 SwarmEvent::Behaviour(BehaviourEvent::Mdns(mdns::Event::Discovered(list))) => {
                     for (peer_id, multiaddr) in list {
                         kv_swarm.behaviour_mut().kademlia.add_address(&peer_id, multiaddr);
                     }
                 }
+                //
                 SwarmEvent::Behaviour(BehaviourEvent::Kademlia(kad::Event::OutboundQueryProgressed { result, ..})) => {
                     match result {
+                //
                         kad::QueryResult::GetProviders(Ok(kad::GetProvidersOk::FoundProviders { key, providers, .. })) => {
                             for peer in providers {
                                 println!(
@@ -168,9 +177,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
                                 );
                             }
                         }
+                //
                         kad::QueryResult::GetProviders(Err(err)) => {
                             eprintln!("Failed to get providers: {err:?}");
                         }
+                //
                         kad::QueryResult::GetRecord(Ok(
                             kad::GetRecordOk::FoundRecord(kad::PeerRecord {
                                 record: kad::Record { key, value, .. },
@@ -183,25 +194,31 @@ async fn main() -> Result<(), Box<dyn Error>> {
                                 std::str::from_utf8(&value).unwrap(),
                             );
                         }
+                //
                         kad::QueryResult::GetRecord(Ok(_)) => {}
+                //
                         kad::QueryResult::GetRecord(Err(err)) => {
                             eprintln!("Failed to get record: {err:?}");
                         }
+                //
                         kad::QueryResult::PutRecord(Ok(kad::PutRecordOk { key })) => {
                             println!(
                                 "Successfully put record {:?}",
                                 std::str::from_utf8(key.as_ref()).unwrap()
                             );
                         }
+                //
                         kad::QueryResult::PutRecord(Err(err)) => {
                             eprintln!("Failed to put record: {err:?}");
                         }
+                //
                         kad::QueryResult::StartProviding(Ok(kad::AddProviderOk { key })) => {
                             println!(
                                 "Successfully put provider record {:?}",
                                 std::str::from_utf8(key.as_ref()).unwrap()
                             );
                         }
+                //
                         kad::QueryResult::StartProviding(Err(err)) => {
                             eprintln!("Failed to put provider record: {err:?}");
                         }
@@ -245,11 +262,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .expect("245:Dial to succeed");
     }
 
-
-
-
-
-
     match opt.argument {
         // Providing a file.
         Some(CliArgument::Provide {
@@ -258,8 +270,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
             listen_address,
             ..
         }) => {
-            // Advertise oneself as a provider of the file on the DHT.
-            network_client.start_providing(name.clone()).await;
+            if opt.put.is_some() {
+                println!("Get: opt.put={:?}", opt.put);
+                network_client
+                    .start_providing(opt.put.clone().expect("")[0].clone())
+                    .await;
+            } else {
+                network_client.start_providing(name.clone()).await;
+            };
 
             loop {
                 match network_events.next().await {
@@ -272,15 +290,21 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         }
                     }
                     e => todo!("{:?}", e),
-                }
-            }
+                } //end match
+            } //end loop
         }
         // Locating and getting a file.
         Some(CliArgument::Get { name, peer, .. }) => {
-
-            println!("Get: opt.get={:?}", opt.get);
-            // Locate all nodes providing the file.
             let mut providers = network_client.get_providers(name.clone()).await;
+            if opt.get.is_some() {
+                println!("Get: opt.get={:?}", opt.get);
+                providers = network_client
+                    .get_providers(opt.get.clone().expect("REASON"))
+                    .await;
+            } else {
+                println!("Get: opt.get={:?}", opt.get);
+            }
+            // Locate all nodes providing the file.
             if providers.is_empty() {
                 let mut peer_ids: HashSet<PeerId> = HashSet::new();
 

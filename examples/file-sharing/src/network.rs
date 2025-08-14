@@ -43,6 +43,7 @@ pub(crate) async fn new(
     };
     let peer_id = id_keys.public().to_peer_id();
 
+    //network swarm
     let mut swarm = libp2p::SwarmBuilder::with_existing_identity(id_keys)
         .with_tokio()
         .with_tcp(
@@ -85,11 +86,12 @@ pub(crate) async fn new(
             sender: command_sender,
         },
         event_receiver,
+        //             swarm
         EventLoop::new(swarm, command_receiver, event_sender),
     ))
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct Client {
     sender: mpsc::Sender<Command>,
 }
@@ -189,7 +191,7 @@ pub(crate) struct EventLoop {
 }
 
 impl EventLoop {
-    fn new(
+    pub(crate) fn new(
         swarm: Swarm<Behaviour>,
         command_receiver: mpsc::Receiver<Command>,
         event_sender: mpsc::Sender<Event>,
@@ -234,6 +236,7 @@ impl EventLoop {
         }
     }
 
+    //handle_event
     async fn handle_event(&mut self, event: SwarmEvent<BehaviourEvent>) {
         match event {
             SwarmEvent::Behaviour(BehaviourEvent::Kademlia(
@@ -249,6 +252,7 @@ impl EventLoop {
                     .expect("Completed query to be previously pending.");
                 let _ = sender.send(());
             }
+
             SwarmEvent::Behaviour(BehaviourEvent::Kademlia(
                 kad::Event::OutboundQueryProgressed {
                     id,
@@ -272,6 +276,7 @@ impl EventLoop {
                         .finish();
                 }
             }
+
             SwarmEvent::Behaviour(BehaviourEvent::Kademlia(
                 kad::Event::OutboundQueryProgressed {
                     result:
@@ -281,7 +286,9 @@ impl EventLoop {
                     ..
                 },
             )) => {}
+
             SwarmEvent::Behaviour(BehaviourEvent::Kademlia(_)) => {}
+
             SwarmEvent::Behaviour(BehaviourEvent::RequestResponse(
                 request_response::Event::Message { message, .. },
             )) => match message {
@@ -307,6 +314,7 @@ impl EventLoop {
                         .send(Ok(response.0));
                 }
             },
+
             SwarmEvent::Behaviour(BehaviourEvent::RequestResponse(
                 request_response::Event::OutboundFailure {
                     request_id, error, ..
@@ -318,9 +326,11 @@ impl EventLoop {
                     .expect("Request to still be pending.")
                     .send(Err(Box::new(error)));
             }
+
             SwarmEvent::Behaviour(BehaviourEvent::RequestResponse(
                 request_response::Event::ResponseSent { .. },
             )) => {}
+
             SwarmEvent::NewListenAddr { address, .. } => {
                 let local_peer_id = *self.swarm.local_peer_id();
                 eprintln!(
@@ -328,7 +338,9 @@ impl EventLoop {
                     address.with(Protocol::P2p(local_peer_id))
                 );
             }
+
             SwarmEvent::IncomingConnection { .. } => {}
+
             SwarmEvent::ConnectionEstablished {
                 peer_id, endpoint, ..
             } => {
@@ -338,7 +350,9 @@ impl EventLoop {
                     }
                 }
             }
+
             SwarmEvent::ConnectionClosed { .. } => {}
+
             SwarmEvent::OutgoingConnectionError { peer_id, error, .. } => {
                 if let Some(peer_id) = peer_id {
                     if let Some(sender) = self.pending_dial.remove(&peer_id) {
@@ -346,7 +360,9 @@ impl EventLoop {
                     }
                 }
             }
+
             SwarmEvent::IncomingConnectionError { .. } => {}
+
             SwarmEvent::Dialing {
                 peer_id: Some(peer_id),
                 ..

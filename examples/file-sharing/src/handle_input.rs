@@ -1,42 +1,38 @@
-// Copyright 2021 Protocol Labs.
-//
-// Permission is hereby granted, free of charge, to any person obtaining a
-// copy of this software and associated documentation files (the "Software"),
-// to deal in the Software without restriction, including without limitation
-// the rights to use, copy, modify, merge, publish, distribute, sublicense,
-// and/or sell copies of the Software, and to permit persons to whom the
-// Software is furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
-// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-// DEALINGS IN THE SOFTWARE.
-
 #![doc = include_str!("../README.md")]
 
-use crate::network;
-//use async_std::io;
-use futures::{prelude::*, select};
-use futures::sink::Buffer;
+use async_std::io;
 use clap::Parser;
-use tokio::task::spawn;
-
-use futures::prelude::*;
-use futures::StreamExt;
-use libp2p::{core::Multiaddr, kad, kad::store::MemoryStore, multiaddr::Protocol};
+use futures::{prelude::*, select, StreamExt};
+use libp2p::{
+    core::Multiaddr,
+    identity,
+    identity::{ed25519, Keypair},
+    kad,
+    kad::store::MemoryStore,
+    kad::Mode,
+    mdns,
+    multiaddr::Protocol,
+    noise,
+    swarm::{NetworkBehaviour, SwarmEvent},
+    tcp, yamux, PeerId,
+};
+use std::collections::HashSet;
 use std::error::Error;
 use std::io::Write;
 use std::path::PathBuf;
+use tokio::task::spawn;
+use tokio::time::Duration;
 use tracing_subscriber::EnvFilter;
 
 pub(crate) fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
-    let mut args = line.split(' ');
+    //let mut args = line.replace("[","").replace("]","").replace(",","").split(' ');
+    let binding = line
+        .replace("[", "")
+        .replace("]", "")
+        .replace(",", "")
+        .replace("\"", "");
+    println!("binding={}", binding);
+    let mut args = binding.split(' ');
 
     match args.next() {
         Some("GET") => {
@@ -91,6 +87,7 @@ pub(crate) fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line
             kademlia
                 .put_record(record, kad::Quorum::One)
                 .expect("Failed to store record locally.");
+            //automatically start providing
             kademlia
                 .start_providing(key)
                 .expect("Failed to start providing key");
@@ -105,13 +102,66 @@ pub(crate) fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line
                     }
                 }
             };
-
             kademlia
                 .start_providing(key)
                 .expect("Failed to start providing key");
         }
         _ => {
+            //TODO provide git HEAD
             eprintln!("expected GET, GET_PROVIDERS, PUT or PUT_PROVIDER");
         }
     }
+}
+
+#[derive(Parser, Debug)]
+#[clap(name = "libp2p file sharing example")]
+struct Opt {
+    /// Fixed value to generate deterministic peer ID.
+    #[clap(long, default_value = "0")]
+    secret_key_seed: Option<u8>,
+
+    #[clap(long)]
+    get: Option<String>,
+
+    #[clap(long)]
+    get_providers: Option<String>,
+
+    #[clap(long, num_args = 2)]
+    put: Option<Vec<String>>,
+
+    #[clap(long)]
+    put_provider: Option<String>,
+
+    #[clap(long)]
+    peer: Option<Multiaddr>,
+
+    #[clap(long, default_value = "/ip4/0.0.0.0/tcp/0")]
+    listen_address: Option<Multiaddr>,
+
+    #[clap(subcommand)]
+    argument: Option<CliArgument>,
+}
+
+#[derive(Debug, Parser)]
+enum CliArgument {
+    Provide {
+        #[clap(long)]
+        path: PathBuf,
+        #[clap(long)]
+        name: String,
+        #[clap(long)]
+        peer: Option<Multiaddr>,
+
+        #[clap(long, default_value = "/ip4/0.0.0.0/tcp/0")]
+        listen_address: Option<Multiaddr>,
+    },
+    Get {
+        #[clap(long)]
+        name: String,
+        #[clap(long)]
+        peer: Option<Multiaddr>,
+
+        #[clap(long, default_value = "/ip4/0.0.0.0/tcp/0")]
+        listen_address: Option<Multiaddr>,
+    },
 }
