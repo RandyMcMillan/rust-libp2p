@@ -129,13 +129,32 @@ impl Client {
     }
 
     /// Advertise the local node as the provider of the given file on the DHT.
-    pub(crate) async fn start_providing(&mut self, file_name: String) {
-        let (sender, receiver) = oneshot::channel();
-        self.sender
-            .send(Command::StartProviding { file_name, sender })
-            .await
-            .expect("Command receiver not to be dropped.");
-        receiver.await.expect("Sender not to be dropped.");
+    pub(crate) async fn start_providing(&mut self, file_name: Vec<String>) {
+        //TODO handle put vec
+
+        if file_name.len() == 1 {
+            let mut file_name = &file_name[0];
+            let (sender, receiver) = oneshot::channel();
+            self.sender
+                .send(Command::StartProviding {
+                    file_name: file_name.to_string(),
+                    sender,
+                })
+                .await
+                .expect("Command receiver not to be dropped.");
+            receiver.await.expect("Sender not to be dropped.");
+        } else {
+            let mut file_name = &file_name[1];
+            let (sender, receiver) = oneshot::channel();
+            self.sender
+                .send(Command::StartProviding {
+                    file_name: file_name.to_string(),
+                    sender,
+                })
+                .await
+                .expect("Command receiver not to be dropped.");
+            receiver.await.expect("Sender not to be dropped.");
+        }
     }
 
     /// Find the providers for the given file on the DHT.
@@ -402,13 +421,25 @@ impl EventLoop {
                 }
             }
             Command::StartProviding { file_name, sender } => {
-                let query_id = self
-                    .swarm
-                    .behaviour_mut()
-                    .kademlia
-                    .start_providing(file_name.into_bytes().into())
-                    .expect("No store error.");
-                self.pending_start_providing.insert(query_id, sender);
+                if file_name.len() == 1 {
+                    let mut file_name: &_ = &kad::RecordKey::new(&file_name);
+                    let query_id = self
+                        .swarm
+                        .behaviour_mut()
+                        .kademlia
+                        .start_providing(file_name.clone())
+                        .expect("No store error.");
+                    self.pending_start_providing.insert(query_id, sender);
+                } else {
+                    let mut file_name: &_ = &kad::RecordKey::new(&file_name);
+                    let query_id = self
+                        .swarm
+                        .behaviour_mut()
+                        .kademlia
+                        .start_providing(file_name.clone())
+                        .expect("No store error.");
+                    self.pending_start_providing.insert(query_id, sender);
+                }
             }
             Command::GetProviders { file_name, sender } => {
                 let query_id = self
