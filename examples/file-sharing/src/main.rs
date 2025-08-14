@@ -276,7 +276,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
 fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
     //let mut args = line.replace("[","").replace("]","").replace(",","").split(' ');
-    let binding = line.replace("[","").replace("]","").replace(",","").replace("\"","");
+    let binding = line
+        .replace("[", "")
+        .replace("]", "")
+        .replace(",", "")
+        .replace("\"", "");
     let mut args = binding.split(' ');
 
     match args.next() {
