@@ -7,6 +7,8 @@ use clap::Parser;
 use futures::{prelude::*, select, StreamExt};
 use libp2p::{
     core::Multiaddr,
+    identity,
+    identity::{ed25519, Keypair},
     kad,
     kad::store::MemoryStore,
     kad::Mode,
@@ -14,8 +16,9 @@ use libp2p::{
     multiaddr::Protocol,
     noise,
     swarm::{NetworkBehaviour, SwarmEvent},
-    tcp, yamux,
+    tcp, yamux, PeerId,
 };
+use std::collections::HashSet;
 use std::error::Error;
 use std::io::Write;
 use std::path::PathBuf;
@@ -23,12 +26,32 @@ use tokio::task::spawn;
 use tokio::time::Duration;
 use tracing_subscriber::EnvFilter;
 
+fn hex_to_bytes(s: &str) -> Result<[u8; 32], String> {
+    if s.len() != 64 {
+        return Err("Hex string must be 64 characters long for a 32-byte seed".to_string());
+    }
+    let mut bytes = [0u8; 32];
+    for i in 0..32 {
+        bytes[i] = u8::from_str_radix(&s[i * 2..i * 2 + 2], 16)
+            .map_err(|e| format!("Invalid hex character: {}", e))?;
+    }
+    Ok(bytes)
+}
+
+fn generate_ed25519(secret_key_seed: u8) -> identity::Keypair {
+    let mut bytes = [0u8; 32];
+    bytes[0] = secret_key_seed;
+
+    identity::Keypair::ed25519_from_bytes(bytes).expect("only errors on wrong length")
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let _ = tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
         .try_init();
 
+    let opt = Opt::parse();
     let mut enter_loop: bool = false;
 
     // We create a custom network behaviour that combines Kademlia and mDNS.
@@ -38,7 +61,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
         mdns: mdns::async_io::Behaviour,
     }
 
-    let mut kv_swarm = libp2p::SwarmBuilder::with_new_identity()
+    // Create a static known PeerId based on given secret
+    let local_key: identity::Keypair = generate_ed25519(opt.secret_key_seed.ok_or(..).expect(""));
+
+    let mut kv_swarm = libp2p::SwarmBuilder::with_existing_identity(local_key)
         .with_async_std()
         .with_tcp(
             tcp::Config::default(),
@@ -64,7 +90,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .kademlia
         .set_mode(Some(Mode::Server));
 
-    let opt = Opt::parse();
+    //let opt = Opt::parse();
     if let Some(address) = opt.listen_address.clone() {
         kv_swarm
             .listen_on(address.clone())
@@ -197,19 +223,24 @@ async fn main() -> Result<(), Box<dyn Error>> {
     };
 
     // In case the user provided an address of a peer on the CLI, dial it.
-    if let Some(addr) = opt.peer {
+    if let Some(addr) = opt.peer.clone() {
         let Some(Protocol::P2p(peer_id)) = addr.iter().last() else {
             return Err("Expect peer multiaddr to contain peer ID.".into());
         };
         network_client
-            .dial(peer_id, addr)
+            .dial(peer_id, addr.clone())
             .await
-            .expect("Dial to succeed");
+            .expect("208:Dial to succeed");
     }
 
     match opt.argument {
         // Providing a file.
-        Some(CliArgument::Provide { path, name }) => {
+        Some(CliArgument::Provide {
+            path,
+            name,
+            listen_address,
+            ..
+        }) => {
             // Advertise oneself as a provider of the file on the DHT.
             network_client.start_providing(name.clone()).await;
 
@@ -228,12 +259,53 @@ async fn main() -> Result<(), Box<dyn Error>> {
             }
         }
         // Locating and getting a file.
-        Some(CliArgument::Get { name }) => {
+        Some(CliArgument::Get { name, peer, .. }) => {
             // Locate all nodes providing the file.
-            let providers = network_client.get_providers(name.clone()).await;
+            let mut providers = network_client.get_providers(name.clone()).await;
             if providers.is_empty() {
-                return Err(format!("Could not find provider for file {name}.").into());
-            }
+                let mut peer_ids: HashSet<PeerId> = HashSet::new();
+
+                //let peer_id_string = peer;
+
+                // In case the user provided an address of a peer on the CLI, dial it.
+                if let Some(addr) = opt.peer.clone() {
+                    let Some(Protocol::P2p(peer_id)) = addr.iter().last() else {
+                        println!("");
+                        return Ok(());
+                    }; //{
+                       //peer_ids.insert(peer_id);
+                       //providers = peer_ids;
+                       //for provider in providers.clone() {
+                       //    println!("{}", provider)
+                       //}
+                } else {
+                    //peer_ids.insert(peer_id);
+                    //providers = peer_ids;
+                    //for provider in providers.clone(){println!("{}", provider)};
+
+                    return Err("Expect peer multiaddr to contain peer ID.".into());
+                }; //end if let Some
+                   //network_client
+                   //    .dial(peer_id, addr)
+                   //    .await
+                   //    .expect("Dial to succeed");
+                   //peer_ids.insert(peer_id);
+                   //providers = peer_ids;
+                   //for provider in providers.clone(){println!("{}", provider)};
+            };
+
+            //// Use from_str to parse the string into a PeerId, handling potential errors.
+            //let new_peer_id = match PeerId::from_str(peer_id_string) {
+            //    Ok(id) => id,
+            //    Err(e) => {
+            //        eprintln!("Failed to parse PeerId from string: {}", e);
+            //        return; // Exit the program if the PeerId string is invalid
+            //    }
+            //};
+
+            //providers = peer;
+            //return Err(format!("Could not find provider for file {name}.").into());
+            //};
 
             // Request the content of the file from each node.
             let requests = providers.into_iter().map(|p| {
@@ -318,6 +390,7 @@ fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
             kademlia
                 .put_record(record, kad::Quorum::One)
                 .expect("Failed to store record locally.");
+            //automatically start providing
             kademlia
                 .start_providing(key)
                 .expect("Failed to start providing key");
@@ -332,12 +405,12 @@ fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
                     }
                 }
             };
-
             kademlia
                 .start_providing(key)
                 .expect("Failed to start providing key");
         }
         _ => {
+            //TODO provide git HEAD
             eprintln!("expected GET, GET_PROVIDERS, PUT or PUT_PROVIDER");
         }
     }
@@ -347,7 +420,7 @@ fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
 #[clap(name = "libp2p file sharing example")]
 struct Opt {
     /// Fixed value to generate deterministic peer ID.
-    #[clap(long)]
+    #[clap(long, default_value = "0")]
     secret_key_seed: Option<u8>,
 
     #[clap(long)]
@@ -379,9 +452,19 @@ enum CliArgument {
         path: PathBuf,
         #[clap(long)]
         name: String,
+        #[clap(long)]
+        peer: Option<Multiaddr>,
+
+        #[clap(long, default_value = "/ip4/0.0.0.0/tcp/0")]
+        listen_address: Option<Multiaddr>,
     },
     Get {
         #[clap(long)]
         name: String,
+        #[clap(long)]
+        peer: Option<Multiaddr>,
+
+        #[clap(long, default_value = "/ip4/0.0.0.0/tcp/0")]
+        listen_address: Option<Multiaddr>,
     },
 }
