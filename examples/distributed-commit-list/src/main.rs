@@ -301,7 +301,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Kick it off.
     loop {
         //run
-        let result = run(&args, &mut swarm.behaviour_mut().kademlia).await;
+        let result = run(&args, &mut swarm.behaviour_mut().kademlia, peer_id).await;
         log::trace!("result={:?}", result);
 
         select! {
@@ -623,7 +623,7 @@ fn match_with_parent(
     Ok(diff.deltas().len() > 0)
 }
 
-async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<(), GitError> {
+async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>, peer_id: PeerId) -> Result<(), GitError> {
     let path = args.flag_git_dir.as_ref().map(|s| &s[..]).unwrap_or(".");
     let repo = Repository::discover(path)?;
 
@@ -879,10 +879,11 @@ async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<
                 commit_message_bytes.clone()
             );
 
+            //let test_record = kad::Record {};
             let record = kad::Record {
                 key: commit_id.clone(),
                 value: commit_message_bytes,
-                publisher: None,
+                publisher: Some(peer_id),
                 expires: None,
             };
             kademlia
