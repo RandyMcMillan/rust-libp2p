@@ -787,13 +787,13 @@ async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<
     let tag_names = &repo.tag_names(Some("")).expect("REASON");
     log::debug!("tag_names.len()={}", tag_names.len());
     for tag in tag_names {
-        log::info!("790:tag={}", tag.unwrap());
+        //log::info!("790:tag={}", tag.unwrap());
         //print!(".");
         let key = kad::RecordKey::new(&format!("{}", &tag.unwrap()));
         let repo_path = "."; // Current directory
         match get_commit_id_of_tag(repo_path, &tag.unwrap()) {
             Ok(value) => {
-                log::debug!("The commit ID for tag '{}' is: {}", tag.unwrap(), value);
+                log::info!("796:{}={}", tag.unwrap(), value);
                 let value: Vec<u8> = value.as_bytes().to_vec();
                 let commit_key = kad::RecordKey::new(&format!("{:?}", value.clone()));
                 let commit_key_temp = commit_key.clone();
@@ -808,7 +808,7 @@ async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<
                     .expect("Failed to store record locally.");
                 //log::debug!("809:put_record:{:?}", convert_from_utf8_lossy(&record.key));
                 log::debug!(
-                    "810:put_record:{:?}",
+                    "811:put_record:{:?}",
                     convert_from_utf8_lossy(&record.value)
                 );
                 let key = kad::RecordKey::new(&format!("{}", &tag.unwrap()));
