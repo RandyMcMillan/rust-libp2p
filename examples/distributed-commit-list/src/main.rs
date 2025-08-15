@@ -788,7 +788,7 @@ async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>, peer_id: P
         let record = kad::Record {
             key: commit_id,
             value: commit_message_bytes,
-            publisher: None,
+            publisher: Some(peer_id.clone()),
             expires: None,
         };
         kademlia
@@ -844,7 +844,7 @@ async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>, peer_id: P
         let record = kad::Record {
             key: commit_tree_key.clone(),
             value,
-            publisher: None,
+            publisher: Some(peer_id.clone()),
             expires: None,
         };
         kademlia
