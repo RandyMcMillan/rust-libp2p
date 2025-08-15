@@ -875,6 +875,12 @@ async fn run(
                 .start_providing(diff_key)
                 .expect("Failed to start providing key");
 
+
+
+
+
+
+
             ////println!("commit.tree_id={}", &commit.tree_id());
             //let commit_tree_key = kad::RecordKey::new(&format!("{}/tree", &commit.id()));
             //log::info!("commit.tree={:?}", &commit.tree());
@@ -934,6 +940,11 @@ async fn run(
                 part_index += 1;
             }
             part_index = 0;
+
+
+
+
+
 
             ////println!("commit.message_bytes{:?}", &commit.message_bytes());
             //println!("commit.message_encoding={:?}", &commit.message_encoding());
