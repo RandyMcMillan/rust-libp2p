@@ -199,6 +199,15 @@ fn get_commit_id_of_tag(repo_path: &str, tag_name: &str) -> Result<String, git2:
     Ok(commit_id.to_string())
 }
 
+fn convert_from_utf8_lossy(bytes: &Vec<u8>) -> String {
+    println!("\n--- Using String::from_utf8_lossy (Lossy) ---");
+    // This conversion is infallible; it will always succeed.
+    // The `.into_owned()` method converts the Cow<str> into an owned String.
+    let owned_string = String::from_utf8_lossy(bytes).into_owned();
+    println!("Result: '{}'", owned_string);
+    owned_string
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let _ = init_subscriber(Level::INFO);
@@ -502,7 +511,7 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: Str
             };
             let query_id = kademlia.get_record(key.clone());
             //print_record(record);
-            tracing::debug!(
+            tracing::info!(
                 "kademlia.get_record({})\n{}",
                 kademlia.get_record(key),
                 query_id
@@ -778,22 +787,35 @@ async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<
     let tag_names = &repo.tag_names(Some("")).expect("REASON");
     log::debug!("tag_names.len()={}", tag_names.len());
     for tag in tag_names {
-        log::trace!("{}", tag.unwrap());
+        log::info!("790:tag={}", tag.unwrap());
+        //print!(".");
         let key = kad::RecordKey::new(&format!("{}", &tag.unwrap()));
-
-        ////push commit key and commit content as value
-
         let repo_path = "."; // Current directory
         match get_commit_id_of_tag(repo_path, &tag.unwrap()) {
             Ok(value) => {
-                println!("The commit ID for tag '{}' is: {}", tag.unwrap(), value);
-
+                log::debug!("The commit ID for tag '{}' is: {}", tag.unwrap(), value);
                 let value: Vec<u8> = value.as_bytes().to_vec();
-
-                //let value = Vec::from(commit.message_bytes().clone());
-                //let value = Vec::from(commit.message_bytes());
+                let commit_key = kad::RecordKey::new(&format!("{:?}", value.clone()));
+                let commit_key_temp = commit_key.clone();
                 let record = kad::Record {
                     key,
+                    value: value.clone(),
+                    publisher: None,
+                    expires: None,
+                };
+                kademlia
+                    .put_record(record.clone(), kad::Quorum::One)
+                    .expect("Failed to store record locally.");
+                //log::debug!("809:put_record:{:?}", convert_from_utf8_lossy(&record.key));
+                log::debug!("810:put_record:{:?}", convert_from_utf8_lossy(&record.value));
+                let key = kad::RecordKey::new(&format!("{}", &tag.unwrap()));
+                kademlia
+                    .start_providing(key.clone())
+                    .expect("Failed to start providing key");
+                //log::debug!("815:start_providing:record:{:?}", convert_from_utf8_lossy(&record.key));
+                log::debug!("816:start_providing:record.key:{:?}", convert_from_utf8_lossy(&record.value));
+                let record = kad::Record {
+                    key: commit_key,
                     value: value,
                     publisher: None,
                     expires: None,
@@ -801,12 +823,18 @@ async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<
                 kademlia
                     .put_record(record.clone(), kad::Quorum::One)
                     .expect("Failed to store record locally.");
-                println!("put_record:{:?}", record);
+
+                log::info!("827:commit_key:put_record:{:?}", convert_from_utf8_lossy(&record.value));
+                log::info!("828:commit_key:put_record:{:?}", record.key);
+
                 let key = kad::RecordKey::new(&format!("{}", &tag.unwrap()));
                 kademlia
                     .start_providing(key.clone())
                     .expect("Failed to start providing key");
-                println!("start_providing:{:?}", key);
+
+                log::info!("835:commit_key:start_providing:{:?}", record);
+                log::info!("836:commit_key:start_providing:{:?}", record.key);
+
             }
             Err(e) => {
                 eprintln!("Error getting commit ID: {}", e);
