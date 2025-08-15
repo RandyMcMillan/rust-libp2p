@@ -182,6 +182,22 @@ fn print_record(record: Record) {
     println!("--- End Record ---");
 }
 
+fn get_commit_id_of_tag(repo_path: &str, tag_name: &str) -> Result<String, git2::Error> {
+    let repo = Repository::discover(repo_path)?;
+
+    // Find the tag reference (e.g., "refs/tags/v1.0.0")
+    let reference_name = format!("refs/tags/{}", tag_name);
+    let reference = repo.find_reference(&reference_name)?;
+
+    // Peel the reference to get the underlying object (which should be a commit)
+    let object = reference.peel(ObjectType::Commit)?;
+
+    // Get the OID (commit hash) of the object
+    let commit_id = object.id();
+
+    Ok(commit_id.to_string())
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let _ = init_subscriber(Level::INFO);
@@ -298,146 +314,154 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let listen_on = swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
     log::debug!("listen_on={}", listen_on);
 
+    let mut ran: bool = false;
     // Kick it off.
     loop {
         //run
-        let result = run(&args, &mut swarm.behaviour_mut().kademlia, peer_id).await;
-        log::trace!("result={:?}", result);
+        //let result = run(&args, &mut swarm.behaviour_mut().kademlia, peer_id).await;
+        //log::trace!("result={:?}", result);
 
         select! {
-                Ok(Some(line)) = stdin.next_line() => {
-                    log::trace!("line.len()={}", line.len());
-                    if line.len() <= 3 {
-                    log::debug!("{:?}", swarm.local_peer_id());
-                    for address in swarm.external_addresses() {
-                        log::trace!("{:?}", address);
-                    }
-                    for peer in swarm.connected_peers() {
-                        log::trace!("{:?}", peer);
-                    }
-                    }
-                    handle_input_line(&mut swarm.behaviour_mut().kademlia, line).await;
-                }
+                        Ok(Some(line)) = stdin.next_line() => {
+                            log::trace!("line.len()={}", line.len());
+                            if line.len() <= 3 {
+                            log::debug!("{:?}", swarm.local_peer_id());
+                            for address in swarm.external_addresses() {
+                                log::trace!("{:?}", address);
+                            }
+                            for peer in swarm.connected_peers() {
+                                log::trace!("{:?}", peer);
+                            }
+                            }
+                            handle_input_line(&mut swarm.behaviour_mut().kademlia, line).await;
+                        }
 
-                event = swarm.select_next_some() => match event {
+                        event = swarm.select_next_some() => match event {
 
 
-                //match event
+                        //match event
 
-                    SwarmEvent::ConnectionEstablished { peer_id, .. } => {
-                        tracing::trace!("Connected to {}", peer_id);
-                    }
-                    SwarmEvent::ConnectionClosed { peer_id, .. } => {
-                        tracing::trace!("Disconnected from {}", peer_id);
-                    }
-                    SwarmEvent::Behaviour(BehaviourEvent::Rendezvous(
-                        rendezvous::server::Event::PeerRegistered { peer, registration },
-                    )) => {
-                        tracing::info!(
-                            "Peer {} registered for namespace '{}'",
-                            peer,
-                            registration.namespace
-                        );
-                    }
-                    SwarmEvent::Behaviour(BehaviourEvent::Rendezvous(
-                        rendezvous::server::Event::DiscoverServed {
-                            enquirer,
-                            registrations,
-                        },
-                    )) => {
-                        tracing::info!(
-                            "Served peer {} with {} registrations",
-                            enquirer,
-                            registrations.len()
-                        );
+                            SwarmEvent::ConnectionEstablished { peer_id, .. } => {
+                                tracing::trace!("Connected to {}", peer_id);
+                            }
+                            SwarmEvent::ConnectionClosed { peer_id, .. } => {
+                                tracing::trace!("Disconnected from {}", peer_id);
+                            }
+                            SwarmEvent::Behaviour(BehaviourEvent::Rendezvous(
+                                rendezvous::server::Event::PeerRegistered { peer, registration },
+                            )) => {
+                                tracing::info!(
+                                    "Peer {} registered for namespace '{}'",
+                                    peer,
+                                    registration.namespace
+                                );
+                            }
+                            SwarmEvent::Behaviour(BehaviourEvent::Rendezvous(
+                                rendezvous::server::Event::DiscoverServed {
+                                    enquirer,
+                                    registrations,
+                                },
+                            )) => {
+                                tracing::info!(
+                                    "Served peer {} with {} registrations",
+                                    enquirer,
+                                    registrations.len()
+                                );
+                            }
+                            //other => {
+                            //    tracing::debug!("Unhandled {:?}", other);
+                            //}
+
+                        SwarmEvent::NewListenAddr { address, .. } => {
+                            log::info!("Listening in {address:?}");
+                        }
+
+                        SwarmEvent::Behaviour(BehaviourEvent::Mdns(mdns::Event::Discovered(list))) => {
+                            for (peer_id, multiaddr) in list {
+                                swarm.behaviour_mut().kademlia.add_address(&peer_id, multiaddr.clone());
+                                tracing::info!("{}", peer_id.clone());
+                                tracing::info!("{}", multiaddr.clone());
+                                println!("{}", peer_id.clone());
+                                println!("{}", multiaddr.clone());
+                            }
+                        }
+
+                        SwarmEvent::Behaviour(BehaviourEvent::Kademlia(kad::Event::OutboundQueryProgressed { result, ..})) => {
+                        match result {
+                            kad::QueryResult::GetProviders(Ok(kad::GetProvidersOk::FoundProviders { key, providers, .. })) => {
+                                for peer in providers {
+                                    //log::info!(
+                                    println!(
+                                        "Peer {peer:?} provides key {:?}",
+                                        std::str::from_utf8(key.as_ref()).unwrap()
+                                    );
+                                }
+                            }
+                            kad::QueryResult::GetProviders(Err(err)) => {
+                                //eprintln!("Failed to get providers: {err:?}");
+        //                        log::info!("Failed to get providers: {err:?}");
+                                println!("Failed to get providers: {err:?}");
+                            }
+                            kad::QueryResult::GetRecord(
+                                Ok(
+                                kad::GetRecordOk::FoundRecord(
+                                    kad::PeerRecord {
+                                    record: kad::Record { key, value, .. },
+                                    ..
+                                }
+                                )
+                                )
+                                ) => {
+                                //tracing::info!("{}",record);
+
+                                println!(
+                                    "{{\"commit\":{:?},\"message\":{:?}}}",
+                                    std::str::from_utf8(key.as_ref()).unwrap(),
+                                    std::str::from_utf8(&value).unwrap(),
+                                );
+
+
+                            }
+                            //kad::QueryResult::GetRecord(Ok(_)) => {}
+                            kad::QueryResult::GetRecord(Err(err)) => {
+                                //eprintln!("Failed to get record: {err:?}");
+                                log::info!("Failed to get record: {err:?}");
+                            }
+                            kad::QueryResult::PutRecord(Ok(kad::PutRecordOk { key })) => {
+                                log::info!(
+                                    "PUT {:?}",
+                                    std::str::from_utf8(key.as_ref()).unwrap()
+                                );
+                            }
+                            kad::QueryResult::PutRecord(Err(err)) => {
+                                //eprintln!("Failed to put record: {err:?}");
+                                log::debug!("Failed to put record: {err:?}");
+                            }
+                            kad::QueryResult::StartProviding(Ok(kad::AddProviderOk { key })) => {
+                                log::info!(
+                                    "PUT_PROVIDER {:?}",
+                                    std::str::from_utf8(key.as_ref()).unwrap()
+                                );
+                            }
+                            kad::QueryResult::StartProviding(Err(err)) => {
+                                //eprintln!("Failed to put provider record: {err:?}");
+                                log::trace!("Failed to put provider record: {err:?}");
+                            }
+                            _ => {}
+                        }
                     }
                     other => {
                         tracing::debug!("Unhandled {:?}", other);
                     }
-
-                SwarmEvent::NewListenAddr { address, .. } => {
-                    log::info!("Listening in {address:?}");
-                }
-
-
-                SwarmEvent::Behaviour(BehaviourEvent::Mdns(mdns::Event::Discovered(list))) => {
-                    for (peer_id, multiaddr) in list {
-                        swarm.behaviour_mut().kademlia.add_address(&peer_id, multiaddr.clone());
-                        tracing::info!("{}", peer_id.clone());
-                        tracing::info!("{}", multiaddr.clone());
-                    }
-                }
-
-
-
-                SwarmEvent::Behaviour(BehaviourEvent::Kademlia(kad::Event::OutboundQueryProgressed { result, ..})) => {
-                match result {
-                    kad::QueryResult::GetProviders(Ok(kad::GetProvidersOk::FoundProviders { key, providers, .. })) => {
-                        for peer in providers {
-                            log::info!(
-                                "Peer {peer:?} provides key {:?}",
-                                std::str::from_utf8(key.as_ref()).unwrap()
-                            );
                         }
-                    }
-                    kad::QueryResult::GetProviders(Err(err)) => {
-                        //eprintln!("Failed to get providers: {err:?}");
-                        log::info!("Failed to get providers: {err:?}");
-                    }
-                    kad::QueryResult::GetRecord(
-                        Ok(
-                        kad::GetRecordOk::FoundRecord(
-                            kad::PeerRecord {
-                            record: kad::Record { key, value, .. },
-                            ..
-                        }
-                        )
-                        )
-                        ) => {
-                        //tracing::info!("{}",record);
-
-                        print!(
-                            "{{\"commit\":{:?},\"message\":{:?}}}",
-                            std::str::from_utf8(key.as_ref()).unwrap(),
-                            std::str::from_utf8(&value).unwrap(),
-                        );
-
-
-                    }
-                    //kad::QueryResult::GetRecord(Ok(_)) => {}
-                    kad::QueryResult::GetRecord(Err(err)) => {
-                        //eprintln!("Failed to get record: {err:?}");
-                        log::info!("Failed to get record: {err:?}");
-                    }
-                    kad::QueryResult::PutRecord(Ok(kad::PutRecordOk { key })) => {
-                        log::info!(
-                            "PUT {:?}",
-                            std::str::from_utf8(key.as_ref()).unwrap()
-                        );
-                    }
-                    kad::QueryResult::PutRecord(Err(err)) => {
-                        //eprintln!("Failed to put record: {err:?}");
-                        log::debug!("Failed to put record: {err:?}");
-                    }
-                    kad::QueryResult::StartProviding(Ok(kad::AddProviderOk { key })) => {
-                        log::info!(
-                            "PUT_PROVIDER {:?}",
-                            std::str::from_utf8(key.as_ref()).unwrap()
-                        );
-                    }
-                    kad::QueryResult::StartProviding(Err(err)) => {
-                        //eprintln!("Failed to put provider record: {err:?}");
-                        log::trace!("Failed to put provider record: {err:?}");
-                    }
-                    _ => {}
                 }
-            }
-            other => {
-                tracing::debug!("Unhandled {:?}", other);
-            }
-                }
+
+        if !ran {
+            let result = run(&args, &mut swarm.behaviour_mut().kademlia, peer_id).await;
+            log::trace!("result={:?}", result);
+            ran = true;
         }
-    }
+    } //end loop
 }
 
 //fn commit_list(kademlia: &mut kad::Behaviour<MemoryStore>) {
@@ -623,7 +647,11 @@ fn match_with_parent(
     Ok(diff.deltas().len() > 0)
 }
 
-async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>, peer_id: PeerId) -> Result<(), GitError> {
+async fn run(
+    args: &Args,
+    kademlia: &mut kad::Behaviour<MemoryStore>,
+    peer_id: PeerId,
+) -> Result<(), GitError> {
     let path = args.flag_git_dir.as_ref().map(|s| &s[..]).unwrap_or(".");
     let repo = Repository::discover(path)?;
 
@@ -737,223 +765,235 @@ async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>, peer_id: P
             Some(Ok(commit))
         })
         .skip(args.flag_skip.unwrap_or(0))
-        .take(args.flag_max_count.unwrap_or(!0));
+        .take(args.flag_max_count.unwrap_or(!0)); //end let revwalk
 
     let tag_names = &repo.tag_names(Some("")).expect("REASON");
-    //log::info!("tag_names.len()={}", tag_names.len());
-    //for tag in tag_names {
-    //    log::info!("{}", tag.unwrap());
-    //    let key = kad::RecordKey::new(&format!("{}", &tag.unwrap()));
-
-    //    ////push commit key and commit content as value
-    //    ////let value = Vec::from(commit.message_bytes().clone());
-    //    //let value = Vec::from(commit.message_bytes());
-    //    //let record = kad::Record {
-    //    //    key,
-    //    //    value,
-    //    //    publisher: None,
-    //    //    expires: None,
-    //    //};
-    //    //kademlia
-    //    //    .put_record(record, kad::Quorum::One)
-    //    //    .expect("Failed to store record locally.");
-    //    //let key = kad::RecordKey::new(&format!("{}", &commit.id()));
-    //    //kademlia
-    //    //    .start_providing(key)
-    //    //    .expect("Failed to start providing key");
-    //}
-
-    // print!
-    for commit in revwalk {
-        let commit = commit?;
-
-        //TODO construct nostr event
-        //commit_privkey
-        let commit_privkey: String = String::from(format!("{:0>64}", &commit.id().clone()));
-        log::info!("commit_privkey=\n{}", commit_privkey);
-
-        //commit.id
-        //we want to broadcast as provider for the actual commit.id()
-        log::info!("&commit.id=\n{}", &commit.id());
-
-        let key = kad::RecordKey::new(&format!("{}", &commit.id()));
-
-        let commit_id = kad::RecordKey::new(&format!("{}", &commit.id()));
+    log::info!("tag_names.len()={}", tag_names.len());
+    for tag in tag_names {
+        log::info!("{}", tag.unwrap());
+        let tag_key = kad::RecordKey::new(&format!("{}", &tag.clone().unwrap()));
 
         //push commit key and commit content as value
         //let value = Vec::from(commit.message_bytes().clone());
-        let commit_message_bytes = Vec::from(commit.message_bytes());
-        tracing::trace!("commit_message_bytes=\n{:?}", commit_message_bytes.clone());
+        let tag_value = get_commit_id_of_tag(&".", &tag.unwrap());
 
+        let tag_value_owned_string: String = tag_value?.clone().to_owned(); // `.to_owned()` is redundant here, `.clone()` is enough if tag_value is a reference
+        let tag_value_slice: &[u8] = tag_value_owned_string.as_bytes();
         let record = kad::Record {
-            key: commit_id,
-            value: commit_message_bytes,
-            publisher: Some(peer_id.clone()),
-            expires: None,
-        };
-        kademlia
-            .put_record(record.clone(), kad::Quorum::One)
-            .expect("Failed to store record locally.");
-        println!("record.key={:?}\nrecord.value={:?}", record.key, record.value);
-        let key = kad::RecordKey::new(&format!("{}", &commit.id()));
-        kademlia
-            .start_providing(key)
-            .expect("Failed to start providing key");
-
-        let repo_path = "."; // Path to your Git repository
-        let repo = Repository::discover(repo_path).expect("Failed to open repository");
-
-        //let commit_id = "your_commit_hash_here"; // Replace with a valid commit hash
-        let message_bytes = get_commit_message_bytes(&repo, &commit.id().to_string())
-            .expect("Failed to get commit message bytes");
-
-        match String::from_utf8(message_bytes) {
-            Ok(message) => {
-                tracing::info!("799:message:\n{}", message);
-            }
-            Err(e) => {
-                eprintln!("Failed to decode commit message: {}", e);
-                // You can inspect the bytes that caused the error
-                eprintln!("Invalid bytes: {:?}", e.as_bytes());
-            }
-        }
-
-        //let diff_key = kad::RecordKey::new(&format!("{}i/diff", &commit.id()));
-        //let diff = get_commit_diff_as_string(&repo, commit.id());
-        ////tracing::debug!("807:diff=\n{:?}", diff?.clone()?);
-        ////let diff_as_bytes = get_commit_diff_as_bytes(&repo, commit.id())?;
-
-        //let record = kad::Record {
-        //    key: diff_key.clone(),
-        //    value: diff?.clone().into(),
-        //    publisher: None,
-        //    expires: None,
-        //};
-        //kademlia
-        //    .put_record(record, kad::Quorum::One)
-        //    .expect("Failed to store record locally.");
-        ////        let key = kad::RecordKey::new(&format!("{}", &commit.id()));
-        //kademlia
-        //    .start_providing(diff_key)
-        //    .expect("Failed to start providing key");
-
-        //println!("commit.tree_id={}", &commit.tree_id());
-        let commit_tree_key = kad::RecordKey::new(&format!("{}/tree", &commit.id()));
-        log::info!("commit.tree={:?}", &commit.tree());
-        let value = Vec::from(format!("{:?}", commit.tree()));
-        let record = kad::Record {
-            key: commit_tree_key.clone(),
-            value,
-            publisher: Some(peer_id.clone()),
+            key: tag_key.clone(),
+            value: tag_value_slice.clone().to_vec(),
+            publisher: Some(peer_id),
             expires: None,
         };
         kademlia
             .put_record(record, kad::Quorum::One)
             .expect("Failed to store record locally.");
         kademlia
-            .start_providing(commit_tree_key)
+            .start_providing(tag_key)
             .expect("Failed to start providing key");
+    }
 
-        //println!("commit.tree={:?}", &commit.tree());
-        //println!("commit.raw={:?}", &commit.raw()); //pointer?
+    let mut count = 0;
+    // print!
+    for commit in revwalk {
+        count = count + 1;
+        print!("count={}", count);
+        if count <= 10 {
+            let commit = commit?;
 
-        //println!("commit.message={:?}", &commit.message()); //commit diff body
-        let mut part_index = 0;
-        let commit_parts = commit.message().clone().unwrap().split("\n");
-        //let parts = commit.message().clone().unwrap().split("gpgsig");
-        for part in commit_parts {
-            log::info!(
-                "commit.message part={}:{}",
-                part_index,
-                part.replace("", "")
-            );
+            //TODO construct nostr event
+            //commit_privkey
+            let commit_privkey: String = String::from(format!("{:0>64}", &commit.id().clone()));
+            log::info!("commit_privkey=\n{}", commit_privkey);
 
-            let commit_id = kad::RecordKey::new(&format!("{}/{}", &commit.id(), part_index));
-            tracing::info!("860:commit_id=\n{:?}", commit_id.clone());
+            //commit.id
+            //we want to broadcast as provider for the actual commit.id()
+            log::info!("&commit.id=\n{}", &commit.id());
+
+            let key = kad::RecordKey::new(&format!("{}", &commit.id()));
+
+            let commit_id = kad::RecordKey::new(&format!("{}", &commit.id()));
 
             //push commit key and commit content as value
             //let value = Vec::from(commit.message_bytes().clone());
-            let commit_message_bytes = Vec::from(part);
-            tracing::debug!(
-                "865:commit_message_bytes=\n{:?}",
-                commit_message_bytes.clone()
-            );
+            let commit_message_bytes = Vec::from(commit.message_bytes());
+            tracing::trace!("commit_message_bytes=\n{:?}", commit_message_bytes.clone());
 
-            //let test_record = kad::Record {};
             let record = kad::Record {
-                key: commit_id.clone(),
+                key: commit_id,
                 value: commit_message_bytes,
-                publisher: Some(peer_id),
+                publisher: Some(peer_id.clone()),
+                expires: None,
+            };
+            kademlia
+                .put_record(record.clone(), kad::Quorum::One)
+                .expect("Failed to store record locally.");
+            println!(
+                "record.key={:?}\nrecord.value={:?}",
+                record.key, record.value
+            );
+            let key = kad::RecordKey::new(&format!("{}", &commit.id()));
+            kademlia
+                .start_providing(key)
+                .expect("Failed to start providing key");
+
+            let repo_path = "."; // Path to your Git repository
+            let repo = Repository::discover(repo_path).expect("Failed to open repository");
+
+            //let commit_id = "your_commit_hash_here"; // Replace with a valid commit hash
+            let message_bytes = get_commit_message_bytes(&repo, &commit.id().to_string())
+                .expect("Failed to get commit message bytes");
+
+            match String::from_utf8(message_bytes) {
+                Ok(message) => {
+                    tracing::info!("799:message:\n{}", message);
+                }
+                Err(e) => {
+                    eprintln!("Failed to decode commit message: {}", e);
+                    // You can inspect the bytes that caused the error
+                    eprintln!("Invalid bytes: {:?}", e.as_bytes());
+                }
+            }
+
+            //let diff_key = kad::RecordKey::new(&format!("{}i/diff", &commit.id()));
+            //let diff = get_commit_diff_as_string(&repo, commit.id());
+            ////tracing::debug!("807:diff=\n{:?}", diff?.clone()?);
+            ////let diff_as_bytes = get_commit_diff_as_bytes(&repo, commit.id())?;
+
+            //let record = kad::Record {
+            //    key: diff_key.clone(),
+            //    value: diff?.clone().into(),
+            //    publisher: None,
+            //    expires: None,
+            //};
+            //kademlia
+            //    .put_record(record, kad::Quorum::One)
+            //    .expect("Failed to store record locally.");
+            ////        let key = kad::RecordKey::new(&format!("{}", &commit.id()));
+            //kademlia
+            //    .start_providing(diff_key)
+            //    .expect("Failed to start providing key");
+
+            //println!("commit.tree_id={}", &commit.tree_id());
+            let commit_tree_key = kad::RecordKey::new(&format!("{}/tree", &commit.id()));
+            log::info!("commit.tree={:?}", &commit.tree());
+            let value = Vec::from(format!("{:?}", commit.tree()));
+            let record = kad::Record {
+                key: commit_tree_key.clone(),
+                value,
+                publisher: Some(peer_id.clone()),
                 expires: None,
             };
             kademlia
                 .put_record(record, kad::Quorum::One)
                 .expect("Failed to store record locally.");
             kademlia
-                .start_providing(commit_id)
+                .start_providing(commit_tree_key)
                 .expect("Failed to start providing key");
 
-            part_index += 1;
-        }
-        part_index = 0;
+            //println!("commit.tree={:?}", &commit.tree());
+            //println!("commit.raw={:?}", &commit.raw()); //pointer?
 
-        ////println!("commit.message_bytes{:?}", &commit.message_bytes());
-        //println!("commit.message_encoding={:?}", &commit.message_encoding());
-        //println!("commit.message_raw={:?}", &commit.message_raw());
-        ////println!("commit.message_raw_bytes={:?}", &commit.message_raw_bytes());
+            //println!("commit.message={:?}", &commit.message()); //commit diff body
+            let mut part_index = 0;
+            let commit_parts = commit.message().clone().unwrap().split("\n");
+            //let parts = commit.message().clone().unwrap().split("gpgsig");
+            for part in commit_parts {
+                log::info!(
+                    "commit.message part={}:{}",
+                    part_index,
+                    part.replace("", "")
+                );
 
-        //raw_header
-        //println!("commit.raw_header={:?}", commit.raw_header());
-        let raw_header_parts = commit.raw_header().clone().unwrap().split("\n");
-        for part in raw_header_parts {
-            log::trace!("raw_header part={}:{}", part_index, part.replace("", ""));
-            part_index += 1;
-        }
-        //parts = commit.raw_header().clone().unwrap().split("gpgsig");
-        //for part in parts {
-        //    println!("raw_header gpgsig part={}", part.replace("", ""))
-        //};
-        ////println!("commit.header_field_bytes={:?}", &commit.header_field_bytes());
-        ////println!("commit.raw_header_bytes={:?}", &commit.raw_header_bytes());
-        //println!("commit.summary={:?}", &commit.summary());
-        ////println!("commit.summary_bytes={:?}", &commit.summary_bytes());
-        //println!("commit.body={:?}", &commit.body());
-        ////println!("commit.body_bytes={:?}", &commit.body_bytes());
-        //println!("commit.time={:?}", &commit.time());
-        //println!("commit.author={:?}", &commit.author().name());
-        //print_commit_header(&commit);
+                let commit_id = kad::RecordKey::new(&format!("{}/{}", &commit.id(), part_index));
+                tracing::info!("860:commit_id=\n{:?}", commit_id.clone());
 
-        if !args.flag_patch || commit.parents().len() > 1 {
-            continue;
-        }
+                //push commit key and commit content as value
+                //let value = Vec::from(commit.message_bytes().clone());
+                let commit_message_bytes = Vec::from(part);
+                tracing::debug!(
+                    "865:commit_message_bytes=\n{:?}",
+                    commit_message_bytes.clone()
+                );
 
-        let a = if commit.parents().len() == 1 {
-            //we have arrived at the initial commit
-            let parent = commit.parent(0)?;
-            Some(parent.tree()?)
-        } else {
-            None
-        };
+                //let test_record = kad::Record {};
+                let record = kad::Record {
+                    key: commit_id.clone(),
+                    value: commit_message_bytes,
+                    publisher: Some(peer_id),
+                    expires: None,
+                };
+                kademlia
+                    .put_record(record, kad::Quorum::One)
+                    .expect("Failed to store record locally.");
+                kademlia
+                    .start_providing(commit_id)
+                    .expect("Failed to start providing key");
 
-        //print the diff content
-        //push diff to commit_key
-        let b = commit.tree()?;
-        let diff = repo.diff_tree_to_tree(a.as_ref(), Some(&b), Some(&mut diffopts2))?;
-        diff.print(DiffFormat::Patch, |_delta, _hunk, line| {
-            match line.origin() {
-                ' ' | '+' | '-' => print!("{}", line.origin()),
-                _ => {}
+                part_index += 1;
             }
-            print!(
-                "769:==================>{}",
-                str::from_utf8(line.content()).unwrap()
-            );
-            true
-        })?;
-    }
+            part_index = 0;
+
+            ////println!("commit.message_bytes{:?}", &commit.message_bytes());
+            //println!("commit.message_encoding={:?}", &commit.message_encoding());
+            //println!("commit.message_raw={:?}", &commit.message_raw());
+            ////println!("commit.message_raw_bytes={:?}", &commit.message_raw_bytes());
+
+            //raw_header
+            //println!("commit.raw_header={:?}", commit.raw_header());
+            let raw_header_parts = commit.raw_header().clone().unwrap().split("\n");
+            for part in raw_header_parts {
+                log::trace!("raw_header part={}:{}", part_index, part.replace("", ""));
+                part_index += 1;
+            }
+            //parts = commit.raw_header().clone().unwrap().split("gpgsig");
+            //for part in parts {
+            //    println!("raw_header gpgsig part={}", part.replace("", ""))
+            //};
+            ////println!("commit.header_field_bytes={:?}", &commit.header_field_bytes());
+            ////println!("commit.raw_header_bytes={:?}", &commit.raw_header_bytes());
+            //println!("commit.summary={:?}", &commit.summary());
+            ////println!("commit.summary_bytes={:?}", &commit.summary_bytes());
+            //println!("commit.body={:?}", &commit.body());
+            ////println!("commit.body_bytes={:?}", &commit.body_bytes());
+            //println!("commit.time={:?}", &commit.time());
+            //println!("commit.author={:?}", &commit.author().name());
+            //print_commit_header(&commit);
+
+            if !args.flag_patch || commit.parents().len() > 1 {
+                continue;
+            }
+
+            let a = if commit.parents().len() == 1 {
+                //we have arrived at the initial commit
+                let parent = commit.parent(0)?;
+                Some(parent.tree()?)
+            } else {
+                None
+            };
+
+            //print the diff content
+            //push diff to commit_key
+            let b = commit.tree()?;
+            let diff = repo.diff_tree_to_tree(a.as_ref(), Some(&b), Some(&mut diffopts2))?;
+            diff.print(DiffFormat::Patch, |_delta, _hunk, line| {
+                match line.origin() {
+                    ' ' | '+' | '-' => print!("{}", line.origin()),
+                    _ => {}
+                }
+                print!(
+                    "769:==================>{}",
+                    str::from_utf8(line.content()).unwrap()
+                );
+                true
+            })?;
+            count = count + 1; //end if count <= 100
+        } else {
+        };
+    } //end loop
 
     Ok(())
-}
+} //end run
 
 //TODO Server Mode or ??
 #[derive(Debug, Parser)]
