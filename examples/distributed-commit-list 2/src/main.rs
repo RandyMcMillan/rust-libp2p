@@ -834,18 +834,12 @@ async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<
                     "834:\ncommit_key:\nput_record:\n{}",
                     convert_from_utf8_lossy(&record.value)
                 );
-                log::info!("837:\ncommit_key:\nput_record:\n{:?}", record.key);
 
                 let key = kad::RecordKey::new(&format!("{}", &tag.unwrap()));
                 kademlia
                     .start_providing(key.clone())
                     .expect("Failed to start providing key");
 
-                log::info!(
-                    "845:\nrecord.value:\ncommit_key:\nstart_providing:\n{}",
-                    convert_from_utf8_lossy(&record.value).to_owned()
-                );
-                log::info!("848:\ncommit_key:\nstart_providing:\n{:?}", record.key);
             }
             Err(e) => {
                 eprintln!("Error getting commit ID: {}", e);
