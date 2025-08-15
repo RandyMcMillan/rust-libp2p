@@ -807,13 +807,19 @@ async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<
                     .put_record(record.clone(), kad::Quorum::One)
                     .expect("Failed to store record locally.");
                 //log::debug!("809:put_record:{:?}", convert_from_utf8_lossy(&record.key));
-                log::debug!("810:put_record:{:?}", convert_from_utf8_lossy(&record.value));
+                log::debug!(
+                    "810:put_record:{:?}",
+                    convert_from_utf8_lossy(&record.value)
+                );
                 let key = kad::RecordKey::new(&format!("{}", &tag.unwrap()));
                 kademlia
                     .start_providing(key.clone())
                     .expect("Failed to start providing key");
                 //log::debug!("815:start_providing:record:{:?}", convert_from_utf8_lossy(&record.key));
-                log::debug!("816:start_providing:record.key:{:?}", convert_from_utf8_lossy(&record.value));
+                log::debug!(
+                    "816:start_providing:record.key:{:?}",
+                    convert_from_utf8_lossy(&record.value)
+                );
                 let record = kad::Record {
                     key: commit_key,
                     value: value,
@@ -824,7 +830,10 @@ async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<
                     .put_record(record.clone(), kad::Quorum::One)
                     .expect("Failed to store record locally.");
 
-                log::info!("827:commit_key:put_record:{:?}", convert_from_utf8_lossy(&record.value));
+                log::info!(
+                    "827:commit_key:put_record:{:?}",
+                    convert_from_utf8_lossy(&record.value)
+                );
                 log::info!("828:commit_key:put_record:{:?}", record.key);
 
                 let key = kad::RecordKey::new(&format!("{}", &tag.unwrap()));
@@ -832,9 +841,11 @@ async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<
                     .start_providing(key.clone())
                     .expect("Failed to start providing key");
 
-                log::info!("835:commit_key:start_providing:{:?}", record);
+                log::info!(
+                    "835:record.value:commit_key:start_providing:{:?}",
+                    convert_from_utf8_lossy(&record.value).to_owned()
+                );
                 log::info!("836:commit_key:start_providing:{:?}", record.key);
-
             }
             Err(e) => {
                 eprintln!("Error getting commit ID: {}", e);
