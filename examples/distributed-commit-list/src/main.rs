@@ -1,15 +1,13 @@
 #![doc = include_str!("../README.md")]
-
 use clap::Parser;
+use futures::stream::StreamExt;
 use git2::{Commit, Diff, DiffOptions, ObjectType, Oid, Repository, Signature, Time};
 use git2::{DiffFormat, Error as GitError, Pathspec};
-use std::str;
-use std::{error::Error, time::Duration};
-
-use futures::stream::StreamExt;
 use libp2p::StreamProtocol;
 use libp2p::{
-    identify, kad,
+    identify, identity,
+    identity::Keypair,
+    kad,
     kad::{
         store::MemoryStore, store::MemoryStoreConfig, Config as KadConfig, Mode, Record, RecordKey,
     },
@@ -17,15 +15,17 @@ use libp2p::{
     swarm::{NetworkBehaviour, SwarmEvent},
     tcp, yamux, PeerId,
 };
+use std::str;
+use std::{error::Error, time::Duration};
 use tokio::{
     io::{self, AsyncBufReadExt},
     select,
 };
 use tracing::{debug, info, trace, warn, Level};
+use tracing_log::log;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{fmt, EnvFilter};
-//use tracing_log::LogTracer;
-use tracing_log::log;
+
 fn init_subscriber(_level: Level) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
     let fmt_layer = fmt::layer().with_target(false);
     let filter_layer = EnvFilter::try_from_default_env()
@@ -198,6 +198,20 @@ fn get_commit_id_of_tag(repo_path: &str, tag_name: &str) -> Result<String, git2:
     Ok(commit_id.to_string())
 }
 
+fn generate_ed25519(secret_key_seed: u8) -> identity::Keypair {
+    let mut bytes = [0u8; 32];
+    bytes[0] = secret_key_seed;
+
+    identity::Keypair::ed25519_from_bytes(bytes).expect("only errors on wrong length")
+}
+//fn generate_ed25519(secret_key_seed: &mut u8) -> identity::Keypair {
+////    let mut bytes = [0u8; 32];
+//    //let mut bytes: &[u8] = secret_key_seed.as_bytes();
+//    //bytes[0] = secret_key_seed;
+//
+//    identity::Keypair::ed25519_from_bytes(secret_key_seed.as_bytes_mut()).expect("only errors on wrong length")
+//}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let _ = init_subscriber(Level::WARN);
@@ -208,8 +222,22 @@ async fn main() -> Result<(), Box<dyn Error>> {
     //TODO create key from arg
     let args = Args::parse();
 
-    //for arg in args.into() {
     tracing::debug!("args={:?}", args);
+    // Create a static known PeerId based on given secret
+    let local_key: identity::Keypair = generate_ed25519(args.secret.unwrap_or(0));
+
+    tracing::debug!("local_key={:?}", local_key.public());
+
+    // let keypair = if let Some(secret_key_hex) = args.secret.expect("REASON").bytes().clone() {
+    // libp2p::identity::Keypair::ed25519_from_bytes(secret_key_hex.clone().unwrap().into_bytes())
+    //    } else {
+    //        libp2p::identity::Keypair::ed25519_from_bytes([0; 32])
+    //    };
+    //
+    //let public_key = keypair.expect("REASON").public();
+    //    println!("{:?}", public_key);
+    //
+    //for arg in args.into() {
     //}
     // Results in PeerID 12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN which is
     // used as the rendezvous point by the other peer examples.
@@ -998,6 +1026,9 @@ async fn run(
 //TODO Server Mode or ??
 #[derive(Debug, Parser)]
 struct Args {
+    #[structopt(name = "secret", long)]
+    /// secret to derive peer_id from
+    secret: Option<u8>,
     #[structopt(name = "topo-order", long)]
     /// sort commits in topological order
     flag_topo_order: bool,
