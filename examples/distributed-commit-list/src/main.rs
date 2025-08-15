@@ -438,7 +438,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                                 log::debug!("Failed to put record: {err:?}");
                             }
                             kad::QueryResult::StartProviding(Ok(kad::AddProviderOk { key })) => {
-                                log::info!(
+                                log::debug!(
                                     "PUT_PROVIDER {:?}",
                                     std::str::from_utf8(key.as_ref()).unwrap()
                                 );
