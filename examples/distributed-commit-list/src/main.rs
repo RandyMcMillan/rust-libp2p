@@ -10,10 +10,12 @@ use futures::stream::StreamExt;
 use libp2p::StreamProtocol;
 use libp2p::{
     identify, kad,
-    kad::{store::MemoryStore, Mode, Record, RecordKey},
+    kad::{
+        store::MemoryStore, store::MemoryStoreConfig, Config as KadConfig, Mode, Record, RecordKey,
+    },
     mdns, noise, ping, rendezvous,
     swarm::{NetworkBehaviour, SwarmEvent},
-    tcp, yamux,
+    tcp, yamux, PeerId,
 };
 use tokio::{
     io::{self, AsyncBufReadExt},
@@ -197,9 +199,22 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // used as the rendezvous point by the other peer examples.
     // TODO --key arg
     let keypair = libp2p::identity::Keypair::ed25519_from_bytes([0; 32]).unwrap();
+    let public_key = keypair.public();
+    let peer_id = PeerId::from_public_key(&public_key);
+    let kad_store_config = MemoryStoreConfig {
+        max_provided_keys: usize::MAX,
+        max_providers_per_key: usize::MAX,
+        max_records: usize::MAX,
+        max_value_bytes: usize::MAX,
+    };
+    let kad_memstore = MemoryStore::with_config(peer_id, kad_store_config);
+    let mut kad_config = KadConfig::default();
 
-    // We create a custom network behaviour that combines
-    // Kademlia and mDNS identify rendezvous ping
+    kad_config.set_query_timeout(Duration::from_secs(30));
+    kad_config.set_replication_factor(std::num::NonZeroUsize::new(10).unwrap());
+    kad_config.set_publication_interval(Some(Duration::from_secs(3600))); // 1 hour
+    kad_config.disjoint_query_paths(true); //TODO read https://telematics.tm.kit.edu/publications/Files/267/SKademlia_2007.pdf
+
     #[derive(NetworkBehaviour)]
     struct Behaviour {
         ipfs: kad::Behaviour<MemoryStore>,
@@ -235,9 +250,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 ping: ping::Behaviour::new(
                     ping::Config::new().with_interval(Duration::from_secs(1)),
                 ),
-                kademlia: kad::Behaviour::new(
+                kademlia: kad::Behaviour::with_config(
                     key.public().to_peer_id(),
-                    MemoryStore::new(key.public().to_peer_id()),
+                    kad_memstore, //MemoryStore::new(key.public().to_peer_id()),
+                    kad_config,
                 ),
                 mdns: mdns::tokio::Behaviour::new(
                     mdns::Config::default(),
@@ -335,9 +351,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
                             registrations.len()
                         );
                     }
-                //    other => {
-                //        tracing::debug!("Unhandled {:?}", other);
-                //    }
+                    other => {
+                        tracing::debug!("Unhandled {:?}", other);
+                    }
 
                 SwarmEvent::NewListenAddr { address, .. } => {
                     log::info!("Listening in {address:?}");
@@ -609,10 +625,10 @@ async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<
     let repo = Repository::discover(path)?;
 
     let tag_names = &repo.tag_names(Some("")).expect("REASON");
-    for tag in tag_names {
-        //println!("println!={}", tag.unwrap());
-        log::trace!("tag.unwrap()={}", tag.unwrap());
-    }
+    //for tag in tag_names {
+    //    //println!("println!={}", tag.unwrap());
+    //    log::trace!("tag.unwrap()={}", tag.unwrap());
+    //}
 
     let mut revwalk = repo.revwalk()?;
 
@@ -721,28 +737,28 @@ async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<
         .take(args.flag_max_count.unwrap_or(!0));
 
     let tag_names = &repo.tag_names(Some("")).expect("REASON");
-    log::info!("tag_names.len()={}", tag_names.len());
-    for tag in tag_names {
-        log::info!("{}", tag.unwrap());
-        let key = kad::RecordKey::new(&format!("{}", &tag.unwrap()));
+    //log::info!("tag_names.len()={}", tag_names.len());
+    //for tag in tag_names {
+    //    log::info!("{}", tag.unwrap());
+    //    let key = kad::RecordKey::new(&format!("{}", &tag.unwrap()));
 
-        ////push commit key and commit content as value
-        ////let value = Vec::from(commit.message_bytes().clone());
-        //let value = Vec::from(commit.message_bytes());
-        //let record = kad::Record {
-        //    key,
-        //    value,
-        //    publisher: None,
-        //    expires: None,
-        //};
-        //kademlia
-        //    .put_record(record, kad::Quorum::One)
-        //    .expect("Failed to store record locally.");
-        //let key = kad::RecordKey::new(&format!("{}", &commit.id()));
-        //kademlia
-        //    .start_providing(key)
-        //    .expect("Failed to start providing key");
-    }
+    //    ////push commit key and commit content as value
+    //    ////let value = Vec::from(commit.message_bytes().clone());
+    //    //let value = Vec::from(commit.message_bytes());
+    //    //let record = kad::Record {
+    //    //    key,
+    //    //    value,
+    //    //    publisher: None,
+    //    //    expires: None,
+    //    //};
+    //    //kademlia
+    //    //    .put_record(record, kad::Quorum::One)
+    //    //    .expect("Failed to store record locally.");
+    //    //let key = kad::RecordKey::new(&format!("{}", &commit.id()));
+    //    //kademlia
+    //    //    .start_providing(key)
+    //    //    .expect("Failed to start providing key");
+    //}
 
     // print!
     for commit in revwalk {
@@ -789,7 +805,7 @@ async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<
 
         match String::from_utf8(message_bytes) {
             Ok(message) => {
-                tracing::debug!("793:message:\n{}", message);
+                tracing::info!("799:message:\n{}", message);
             }
             Err(e) => {
                 eprintln!("Failed to decode commit message: {}", e);
@@ -798,28 +814,28 @@ async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<
             }
         }
 
-        let diff_key = kad::RecordKey::new(&format!("{}i/diff", &commit.id()));
-        let diff = get_commit_diff_as_string(&repo, commit.id());
-        //tracing::debug!("807:diff=\n{:?}", diff?.clone()?);
-        //let diff_as_bytes = get_commit_diff_as_bytes(&repo, commit.id())?;
+        //let diff_key = kad::RecordKey::new(&format!("{}i/diff", &commit.id()));
+        //let diff = get_commit_diff_as_string(&repo, commit.id());
+        ////tracing::debug!("807:diff=\n{:?}", diff?.clone()?);
+        ////let diff_as_bytes = get_commit_diff_as_bytes(&repo, commit.id())?;
 
-        let record = kad::Record {
-            key: diff_key.clone(),
-            value: diff?.clone().into(),
-            publisher: None,
-            expires: None,
-        };
-        kademlia
-            .put_record(record, kad::Quorum::One)
-            .expect("Failed to store record locally.");
-        //        let key = kad::RecordKey::new(&format!("{}", &commit.id()));
-        kademlia
-            .start_providing(diff_key)
-            .expect("Failed to start providing key");
+        //let record = kad::Record {
+        //    key: diff_key.clone(),
+        //    value: diff?.clone().into(),
+        //    publisher: None,
+        //    expires: None,
+        //};
+        //kademlia
+        //    .put_record(record, kad::Quorum::One)
+        //    .expect("Failed to store record locally.");
+        ////        let key = kad::RecordKey::new(&format!("{}", &commit.id()));
+        //kademlia
+        //    .start_providing(diff_key)
+        //    .expect("Failed to start providing key");
 
         //println!("commit.tree_id={}", &commit.tree_id());
         let commit_tree_key = kad::RecordKey::new(&format!("{}/tree", &commit.id()));
-        log::debug!("commit.tree={:?}", &commit.tree());
+        log::info!("commit.tree={:?}", &commit.tree());
         let value = Vec::from(format!("{:?}", commit.tree()));
         let record = kad::Record {
             key: commit_tree_key.clone(),
@@ -842,14 +858,14 @@ async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<
         let commit_parts = commit.message().clone().unwrap().split("\n");
         //let parts = commit.message().clone().unwrap().split("gpgsig");
         for part in commit_parts {
-            log::debug!(
+            log::info!(
                 "commit.message part={}:{}",
                 part_index,
                 part.replace("", "")
             );
 
             let commit_id = kad::RecordKey::new(&format!("{}/{}", &commit.id(), part_index));
-            tracing::debug!("860:commit_id=\n{:?}", commit_id.clone());
+            tracing::info!("860:commit_id=\n{:?}", commit_id.clone());
 
             //push commit key and commit content as value
             //let value = Vec::from(commit.message_bytes().clone());
