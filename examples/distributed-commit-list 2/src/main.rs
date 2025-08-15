@@ -200,11 +200,11 @@ fn get_commit_id_of_tag(repo_path: &str, tag_name: &str) -> Result<String, git2:
 }
 
 fn convert_from_utf8_lossy(bytes: &Vec<u8>) -> String {
-    println!("\n--- Using String::from_utf8_lossy (Lossy) ---");
+    //println!("\n--- Using String::from_utf8_lossy (Lossy) ---");
     // This conversion is infallible; it will always succeed.
     // The `.into_owned()` method converts the Cow<str> into an owned String.
     let owned_string = String::from_utf8_lossy(bytes).into_owned();
-    println!("Result: '{}'", owned_string);
+    //println!("Result: '{}'", owned_string);
     owned_string
 }
 
@@ -817,7 +817,7 @@ async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<
                     .expect("Failed to start providing key");
                 //log::debug!("815:start_providing:record:{:?}", convert_from_utf8_lossy(&record.key));
                 log::debug!(
-                    "816:start_providing:record.key:{:?}",
+                    "820:start_providing:\nrecord.key:\n{}",
                     convert_from_utf8_lossy(&record.value)
                 );
                 let record = kad::Record {
@@ -831,10 +831,10 @@ async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<
                     .expect("Failed to store record locally.");
 
                 log::info!(
-                    "827:commit_key:put_record:{:?}",
+                    "834:\ncommit_key:\nput_record:\n{}",
                     convert_from_utf8_lossy(&record.value)
                 );
-                log::info!("828:commit_key:put_record:{:?}", record.key);
+                log::info!("837:\ncommit_key:\nput_record:\n{:?}", record.key);
 
                 let key = kad::RecordKey::new(&format!("{}", &tag.unwrap()));
                 kademlia
@@ -842,10 +842,10 @@ async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<
                     .expect("Failed to start providing key");
 
                 log::info!(
-                    "835:record.value:commit_key:start_providing:{:?}",
+                    "845:\nrecord.value:\ncommit_key:\nstart_providing:\n{}",
                     convert_from_utf8_lossy(&record.value).to_owned()
                 );
-                log::info!("836:commit_key:start_providing:{:?}", record.key);
+                log::info!("848:\ncommit_key:\nstart_providing:\n{:?}", record.key);
             }
             Err(e) => {
                 eprintln!("Error getting commit ID: {}", e);
