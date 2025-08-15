@@ -711,6 +711,7 @@ async fn run(
     }
     let ps = Pathspec::new(args.arg_spec.iter())?;
 
+    //TODO better p2p put options
     // Filter our revwalk based on the CLI parameters
     macro_rules! filter_try {
         ($e:expr) => {
@@ -797,7 +798,7 @@ async fn run(
     // print!
     for commit in revwalk {
         count = count + 1;
-        print!("count={}", count);
+        log::debug!("count={}", count);
         if count <= 10 {
             let commit = commit?;
 
@@ -855,41 +856,41 @@ async fn run(
                 }
             }
 
-            //let diff_key = kad::RecordKey::new(&format!("{}i/diff", &commit.id()));
-            //let diff = get_commit_diff_as_string(&repo, commit.id());
-            ////tracing::debug!("807:diff=\n{:?}", diff?.clone()?);
-            ////let diff_as_bytes = get_commit_diff_as_bytes(&repo, commit.id())?;
+            let diff_key = kad::RecordKey::new(&format!("{}/diff", &commit.id()));
+            let diff = get_commit_diff_as_string(&repo, commit.id());
+            //tracing::debug!("861:diff=\n{:?}", diff?.clone()?);
+            let diff_as_bytes = get_commit_diff_as_bytes(&repo, commit.id())?;
 
-            //let record = kad::Record {
-            //    key: diff_key.clone(),
-            //    value: diff?.clone().into(),
-            //    publisher: None,
-            //    expires: None,
-            //};
-            //kademlia
-            //    .put_record(record, kad::Quorum::One)
-            //    .expect("Failed to store record locally.");
-            ////        let key = kad::RecordKey::new(&format!("{}", &commit.id()));
-            //kademlia
-            //    .start_providing(diff_key)
-            //    .expect("Failed to start providing key");
-
-            //println!("commit.tree_id={}", &commit.tree_id());
-            let commit_tree_key = kad::RecordKey::new(&format!("{}/tree", &commit.id()));
-            log::info!("commit.tree={:?}", &commit.tree());
-            let value = Vec::from(format!("{:?}", commit.tree()));
             let record = kad::Record {
-                key: commit_tree_key.clone(),
-                value,
-                publisher: Some(peer_id.clone()),
+                key: diff_key.clone(),
+                value: diff_as_bytes.clone().into(),
+                publisher: None,
                 expires: None,
             };
             kademlia
                 .put_record(record, kad::Quorum::One)
                 .expect("Failed to store record locally.");
+            //        let key = kad::RecordKey::new(&format!("{}", &commit.id()));
             kademlia
-                .start_providing(commit_tree_key)
+                .start_providing(diff_key)
                 .expect("Failed to start providing key");
+
+            ////println!("commit.tree_id={}", &commit.tree_id());
+            //let commit_tree_key = kad::RecordKey::new(&format!("{}/tree", &commit.id()));
+            //log::info!("commit.tree={:?}", &commit.tree());
+            //let value = Vec::from(format!("{:?}", commit.tree()));
+            //let record = kad::Record {
+            //    key: commit_tree_key.clone(),
+            //    value,
+            //    publisher: Some(peer_id.clone()),
+            //    expires: None,
+            //};
+            //kademlia
+            //    .put_record(record, kad::Quorum::One)
+            //    .expect("Failed to store record locally.");
+            //kademlia
+            //    .start_providing(commit_tree_key)
+            //    .expect("Failed to start providing key");
 
             //println!("commit.tree={:?}", &commit.tree());
             //println!("commit.raw={:?}", &commit.raw()); //pointer?
