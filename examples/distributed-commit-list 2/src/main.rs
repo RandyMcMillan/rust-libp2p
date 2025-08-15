@@ -799,12 +799,14 @@ async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<
                     expires: None,
                 };
                 kademlia
-                    .put_record(record, kad::Quorum::One)
+                    .put_record(record.clone(), kad::Quorum::One)
                     .expect("Failed to store record locally.");
+                println!("put_record:{:?}", record);
                 let key = kad::RecordKey::new(&format!("{}", &tag.unwrap()));
                 kademlia
-                    .start_providing(key)
+                    .start_providing(key.clone())
                     .expect("Failed to start providing key");
+                println!("start_providing:{:?}", key);
             }
             Err(e) => {
                 eprintln!("Error getting commit ID: {}", e);
