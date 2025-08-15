@@ -340,7 +340,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 //    }
 
                 SwarmEvent::NewListenAddr { address, .. } => {
-                    log::debug!("Listening in {address:?}");
+                    log::info!("Listening in {address:?}");
                 }
 
 
@@ -404,7 +404,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         log::debug!("Failed to put record: {err:?}");
                     }
                     kad::QueryResult::StartProviding(Ok(kad::AddProviderOk { key })) => {
-                        log::debug!(
+                        log::info!(
                             "PUT_PROVIDER {:?}",
                             std::str::from_utf8(key.as_ref()).unwrap()
                         );
@@ -450,7 +450,7 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: Str
             };
             let query_id = kademlia.get_record(key.clone());
             //print_record(record);
-            tracing::debug!(
+            tracing::info!(
                 "kademlia.get_record({})\n{}",
                 kademlia.get_record(key),
                 query_id
@@ -524,7 +524,7 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: Str
             std::process::exit(0);
         }
         _ => {
-            tracing::debug!("\nGET, GET_PROVIDERS, PUT, PUT_PROVIDER <commit_hash>");
+            tracing::info!("\nGET, GET_PROVIDERS, PUT, PUT_PROVIDER <commit_hash>");
             eprint!("gnostr> ");
         }
     }
@@ -721,9 +721,9 @@ async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<
         .take(args.flag_max_count.unwrap_or(!0));
 
     let tag_names = &repo.tag_names(Some("")).expect("REASON");
-    log::debug!("tag_names.len()={}", tag_names.len());
+    log::info!("tag_names.len()={}", tag_names.len());
     for tag in tag_names {
-        log::trace!("{}", tag.unwrap());
+        log::info!("{}", tag.unwrap());
         let key = kad::RecordKey::new(&format!("{}", &tag.unwrap()));
 
         ////push commit key and commit content as value
@@ -751,44 +751,24 @@ async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<
         //TODO construct nostr event
         //commit_privkey
         let commit_privkey: String = String::from(format!("{:0>64}", &commit.id().clone()));
-        log::debug!("commit_privkey=\n{}", commit_privkey);
+        log::info!("commit_privkey=\n{}", commit_privkey);
 
         //commit.id
         //we want to broadcast as provider for the actual commit.id()
-        log::debug!("&commit.id=\n{}", &commit.id());
+        log::info!("&commit.id=\n{}", &commit.id());
 
         let key = kad::RecordKey::new(&format!("{}", &commit.id()));
 
+        let commit_id = kad::RecordKey::new(&format!("{}", &commit.id()));
+
         //push commit key and commit content as value
         //let value = Vec::from(commit.message_bytes().clone());
-        let value = Vec::from(commit.message_bytes());
-        tracing::debug!("value={:?}", value.clone());
-
-        let repo_path = "."; // Path to your Git repository
-        let repo = Repository::discover(repo_path).expect("Failed to open repository");
-
-        //let commit_id = "your_commit_hash_here"; // Replace with a valid commit hash
-        let message_bytes = get_commit_message_bytes(&repo, &commit.id().to_string())
-            .expect("Failed to get commit message bytes");
-
-        match String::from_utf8(message_bytes) {
-            Ok(message) => {
-                tracing::debug!("message:\n{}", message);
-            }
-            Err(e) => {
-                eprintln!("Failed to decode commit message: {}", e);
-                // You can inspect the bytes that caused the error
-                eprintln!("Invalid bytes: {:?}", e.as_bytes());
-            }
-        }
-
-        let diff = get_commit_diff_as_string(&repo, commit.id());
-        tracing::debug!("diff={:?}", diff?);
-        //let diff_as_bytes = get_commit_diff_as_bytes(&repo, commit.id())?;
+        let commit_message_bytes = Vec::from(commit.message_bytes());
+        tracing::trace!("commit_message_bytes=\n{:?}", commit_message_bytes.clone());
 
         let record = kad::Record {
-            key,
-            value,
+            key: commit_id,
+            value: commit_message_bytes,
             publisher: None,
             expires: None,
         };
@@ -800,12 +780,49 @@ async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<
             .start_providing(key)
             .expect("Failed to start providing key");
 
+        let repo_path = "."; // Path to your Git repository
+        let repo = Repository::discover(repo_path).expect("Failed to open repository");
+
+        //let commit_id = "your_commit_hash_here"; // Replace with a valid commit hash
+        let message_bytes = get_commit_message_bytes(&repo, &commit.id().to_string())
+            .expect("Failed to get commit message bytes");
+
+        match String::from_utf8(message_bytes) {
+            Ok(message) => {
+                tracing::debug!("793:message:\n{}", message);
+            }
+            Err(e) => {
+                eprintln!("Failed to decode commit message: {}", e);
+                // You can inspect the bytes that caused the error
+                eprintln!("Invalid bytes: {:?}", e.as_bytes());
+            }
+        }
+
+        let diff_key = kad::RecordKey::new(&format!("{}i/diff", &commit.id()));
+        let diff = get_commit_diff_as_string(&repo, commit.id());
+        //tracing::debug!("807:diff=\n{:?}", diff?.clone()?);
+        //let diff_as_bytes = get_commit_diff_as_bytes(&repo, commit.id())?;
+
+        let record = kad::Record {
+            key: diff_key.clone(),
+            value: diff?.clone().into(),
+            publisher: None,
+            expires: None,
+        };
+        kademlia
+            .put_record(record, kad::Quorum::One)
+            .expect("Failed to store record locally.");
+        //        let key = kad::RecordKey::new(&format!("{}", &commit.id()));
+        kademlia
+            .start_providing(diff_key)
+            .expect("Failed to start providing key");
+
         //println!("commit.tree_id={}", &commit.tree_id());
-        let key = kad::RecordKey::new(&format!("{}", &commit.tree_id()));
-        //println!("commit.tree={:?}", &commit.tree());
+        let commit_tree_key = kad::RecordKey::new(&format!("{}/tree", &commit.id()));
+        log::debug!("commit.tree={:?}", &commit.tree());
         let value = Vec::from(format!("{:?}", commit.tree()));
         let record = kad::Record {
-            key,
+            key: commit_tree_key.clone(),
             value,
             publisher: None,
             expires: None,
@@ -813,9 +830,8 @@ async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<
         kademlia
             .put_record(record, kad::Quorum::One)
             .expect("Failed to store record locally.");
-        let key = kad::RecordKey::new(&format!("{}", &commit.id()));
         kademlia
-            .start_providing(key)
+            .start_providing(commit_tree_key)
             .expect("Failed to start providing key");
 
         //println!("commit.tree={:?}", &commit.tree());
@@ -831,6 +847,31 @@ async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<
                 part_index,
                 part.replace("", "")
             );
+
+            let commit_id = kad::RecordKey::new(&format!("{}/{}", &commit.id(), part_index));
+            tracing::debug!("860:commit_id=\n{:?}", commit_id.clone());
+
+            //push commit key and commit content as value
+            //let value = Vec::from(commit.message_bytes().clone());
+            let commit_message_bytes = Vec::from(part);
+            tracing::debug!(
+                "865:commit_message_bytes=\n{:?}",
+                commit_message_bytes.clone()
+            );
+
+            let record = kad::Record {
+                key: commit_id.clone(),
+                value: commit_message_bytes,
+                publisher: None,
+                expires: None,
+            };
+            kademlia
+                .put_record(record, kad::Quorum::One)
+                .expect("Failed to store record locally.");
+            kademlia
+                .start_providing(commit_id)
+                .expect("Failed to start providing key");
+
             part_index += 1;
         }
         part_index = 0;
@@ -844,7 +885,7 @@ async fn run(args: &Args, kademlia: &mut kad::Behaviour<MemoryStore>) -> Result<
         //println!("commit.raw_header={:?}", commit.raw_header());
         let raw_header_parts = commit.raw_header().clone().unwrap().split("\n");
         for part in raw_header_parts {
-            log::debug!("raw_header part={}:{}", part_index, part.replace("", ""));
+            log::trace!("raw_header part={}:{}", part_index, part.replace("", ""));
             part_index += 1;
         }
         //parts = commit.raw_header().clone().unwrap().split("gpgsig");
