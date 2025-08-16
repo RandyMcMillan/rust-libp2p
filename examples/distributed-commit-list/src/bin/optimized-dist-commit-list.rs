@@ -208,7 +208,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     init_subscriber();
     let args = Args::parse();
     warn!("args={:?}", args);
-    let keypair = generate_ed25519(args.secret.unwrap_or(0));
+    //let keypair = generate_ed25519(args.secret.unwrap_or(0));
+    let keypair = generate_ed25519(0);
     let peer_id = PeerId::from(keypair.public());
     warn!("Local PeerId: {}", peer_id);
     let keypair: identity::Keypair = generate_ed25519(args.secret.clone().unwrap_or(0));
@@ -241,7 +242,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             let mut kad_config = kad::Config::default();
             kad_config.set_query_timeout(Duration::from_secs(120));
             kad_config.set_replication_factor(std::num::NonZeroUsize::new(20).unwrap());
-            kad_config.set_publication_interval(Some(Duration::from_secs(600)));
+            kad_config.set_publication_interval(Some(Duration::from_secs(10)));
             kad_config.disjoint_query_paths(false);
             let kad_store = MemoryStore::with_config(peer_id.clone(), kad_store_config);
             let mut ipfs_cfg = kad::Config::new(IPFS_PROTO_NAME);
@@ -408,17 +409,17 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<kad::store::MemoryStore
                     expires: None,
                 };
                 if let Err(e) = kademlia.put_record(record.clone(), kad::Quorum::Majority) {
-                    eprintln!("Failed to store record locally: {:?}", e);
+                    debug!("Failed to store record locally: {:?}", e);
                 } else {
-                    println!(
+                    info!(
                         "put record.key:{:?} record.value:{:?}",
                         record.key, record.value
                     );
                 }
                 if let Err(e) = kademlia.start_providing(key.clone()) {
-                    eprintln!("Failed to store record locally: {:?}", e);
+                    debug!("Failed to store record locally: {:?}", e);
                 } else {
-                    println!(
+                    info!(
                         "started providing put record.key:{:?} record.value:{:?} key:{:?}",
                         record.key,
                         record.value,
