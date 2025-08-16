@@ -88,7 +88,7 @@ fn generate_ed25519(secret_key_seed: u8) -> identity::Keypair {
 
     for (i, byte) in bytes.iter().enumerate() {
         // Print context: the index and value (decimal and hex) of the current byte.
-        //print!("Byte {:02} [{:3} / {:#04x}]: ", i, byte, byte);
+        print!("Byte {:02} [{:3} / {:#04x}]: ", i, byte, byte);
 
         // A `u8` has 8 bits. We iterate from 7 down to 0 to print
         // the most significant bit (MSB) first.
@@ -101,9 +101,9 @@ fn generate_ed25519(secret_key_seed: u8) -> identity::Keypair {
             // Use the bitwise AND operator `&` to check if the bit at the mask's
             // position is set. If the result is not 0, the bit is 1.
             if byte & mask == 0 {
-        //        print!("0");
+                print!("0");
             } else {
-        //        print!("1");
+                print!("1");
             }
         }
         // Add a newline to separate the output for each byte.
@@ -114,7 +114,7 @@ fn generate_ed25519(secret_key_seed: u8) -> identity::Keypair {
 
     for (i, byte) in bytes.iter().enumerate() {
         // Print context: the index and value (decimal and hex) of the current byte.
-        //print!("Byte {:02} [{:3} / {:#04x}]: ", i, byte, byte);
+        print!("Byte {:02} [{:3} / {:#04x}]: ", i, byte, byte);
 
         // A `u8` has 8 bits. We iterate from 7 down to 0 to print
         // the most significant bit (MSB) first.
@@ -127,9 +127,9 @@ fn generate_ed25519(secret_key_seed: u8) -> identity::Keypair {
             // Use the bitwise AND operator `&` to check if the bit at the mask's
             // position is set. If the result is not 0, the bit is 1.
             if byte & mask == 0 {
-          //      print!("0");
+                print!("0");
             } else {
-          //      print!("1");
+                print!("1");
             }
         }
         // Add a newline to separate the output for each byte.
@@ -149,7 +149,7 @@ fn generate_close_peer_id(mut bytes: [u8; 32], common_bits: usize) -> PeerId {
 
     for (i, byte) in close_bytes.iter().enumerate() {
         // Print context: the index and value (decimal and hex) of the current byte.
-        //print!("Byte {:02} [{:3} / {:#04x}]: ", i, byte, byte);
+        print!("Byte {:02} [{:3} / {:#04x}]: ", i, byte, byte);
 
         // A `u8` has 8 bits. We iterate from 7 down to 0 to print
         // the most significant bit (MSB) first.
@@ -162,9 +162,9 @@ fn generate_close_peer_id(mut bytes: [u8; 32], common_bits: usize) -> PeerId {
             // Use the bitwise AND operator `&` to check if the bit at the mask's
             // position is set. If the result is not 0, the bit is 1.
             if byte & mask == 0 {
-          //      print!("0");
+                print!("0");
             } else {
-          //      print!("1");
+                print!("1");
             }
         }
         // Add a newline to separate the output for each byte.
@@ -346,7 +346,7 @@ async fn handle_swarm_event(swarm: &mut Swarm<Behaviour>, event: SwarmEvent<Beha
                 ..
             }))) => {
                 println!(
-                    "{{\"commit\":{:?},\"message\":{:?}}}",
+                    "{{\"key\":{:?},\"value\":{:?}}}",
                     std::str::from_utf8(record.key.as_ref()).unwrap_or("invalid utf8"),
                     std::str::from_utf8(&record.value).unwrap_or("invalid utf8"),
                 );
@@ -407,11 +407,23 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<kad::store::MemoryStore
                     publisher: None,
                     expires: None,
                 };
-                if let Err(e) = kademlia.put_record(record, kad::Quorum::Majority) {
+                if let Err(e) = kademlia.put_record(record.clone(), kad::Quorum::Majority) {
                     eprintln!("Failed to store record locally: {:?}", e);
+                } else {
+                    println!(
+                        "put record.key:{:?} record.value:{:?}",
+                        record.key, record.value
+                    );
                 }
-                if let Err(e) = kademlia.start_providing(key) {
+                if let Err(e) = kademlia.start_providing(key.clone()) {
                     eprintln!("Failed to store record locally: {:?}", e);
+                } else {
+                    println!(
+                        "started providing put record.key:{:?} record.value:{:?} key:{:?}",
+                        record.key,
+                        record.value,
+                        key.clone()
+                    );
                 }
             } else {
                 eprintln!("Usage: PUT <key> <value>");
