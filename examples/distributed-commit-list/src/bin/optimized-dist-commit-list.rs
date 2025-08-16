@@ -47,11 +47,13 @@ fn init_subscriber() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
     Ok(())
 }
 
-const IPFS_BOOTNODES: [&str; 4] = [
+const IPFS_BOOTNODES: [&str; 6] = [
     "QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
     "QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa",
     "QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
     "QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt",
+    "12D3KooWH1URV3uTNQW6SZ1UFDnHN8NXwznAA8JeETTBm8oimjh9",
+    "12D3KooWFhXabKDwALpzqMbto94sB7rvmZ6M28hs9Y9xSopDKwQr",
 ];
 const IPFS_PROTO_NAME: StreamProtocol = StreamProtocol::new("/ipfs/kad/1.0.0");
 
@@ -83,8 +85,122 @@ fn get_commit_id_of_tag(repo: &Repository, tag_name: &str) -> Result<String, git
 
 fn generate_ed25519(secret_key_seed: u8) -> identity::Keypair {
     let mut bytes = [0u8; 32];
-    bytes[0] = secret_key_seed;
-    identity::Keypair::ed25519_from_bytes(bytes).expect("only errors on wrong length")
+
+    for (i, byte) in bytes.iter().enumerate() {
+        // Print context: the index and value (decimal and hex) of the current byte.
+        //print!("Byte {:02} [{:3} / {:#04x}]: ", i, byte, byte);
+
+        // A `u8` has 8 bits. We iterate from 7 down to 0 to print
+        // the most significant bit (MSB) first.
+        for j in (0..8).rev() {
+            // Create a "mask" by shifting the number 1 to the left `j` times.
+            // For j=7, mask is 10000000
+            // For j=0, mask is 00000001
+            let mask = 1 << j;
+
+            // Use the bitwise AND operator `&` to check if the bit at the mask's
+            // position is set. If the result is not 0, the bit is 1.
+            if byte & mask == 0 {
+        //        print!("0");
+            } else {
+        //        print!("1");
+            }
+        }
+        // Add a newline to separate the output for each byte.
+        println!();
+    }
+
+    bytes[31] = secret_key_seed;
+
+    for (i, byte) in bytes.iter().enumerate() {
+        // Print context: the index and value (decimal and hex) of the current byte.
+        //print!("Byte {:02} [{:3} / {:#04x}]: ", i, byte, byte);
+
+        // A `u8` has 8 bits. We iterate from 7 down to 0 to print
+        // the most significant bit (MSB) first.
+        for j in (0..8).rev() {
+            // Create a "mask" by shifting the number 1 to the left `j` times.
+            // For j=7, mask is 10000000
+            // For j=0, mask is 00000001
+            let mask = 1 << j;
+
+            // Use the bitwise AND operator `&` to check if the bit at the mask's
+            // position is set. If the result is not 0, the bit is 1.
+            if byte & mask == 0 {
+          //      print!("0");
+            } else {
+          //      print!("1");
+            }
+        }
+        // Add a newline to separate the output for each byte.
+        println!();
+    }
+
+    let keypair =
+        identity::Keypair::ed25519_from_bytes(bytes).expect("only errors on wrong length");
+    //println!("141:{}", keypair.public().to_peer_id());
+    generate_close_peer_id(bytes.clone(), 1usize);
+    keypair
+}
+
+fn generate_close_peer_id(mut bytes: [u8; 32], common_bits: usize) -> PeerId {
+    let mut close_bytes = [0u8; 32];
+    close_bytes = bytes;
+
+    for (i, byte) in close_bytes.iter().enumerate() {
+        // Print context: the index and value (decimal and hex) of the current byte.
+        //print!("Byte {:02} [{:3} / {:#04x}]: ", i, byte, byte);
+
+        // A `u8` has 8 bits. We iterate from 7 down to 0 to print
+        // the most significant bit (MSB) first.
+        for j in (0..8).rev() {
+            // Create a "mask" by shifting the number 1 to the left `j` times.
+            // For j=7, mask is 10000000
+            // For j=0, mask is 00000001
+            let mask = 1 << j;
+
+            // Use the bitwise AND operator `&` to check if the bit at the mask's
+            // position is set. If the result is not 0, the bit is 1.
+            if byte & mask == 0 {
+          //      print!("0");
+            } else {
+          //      print!("1");
+            }
+        }
+        // Add a newline to separate the output for each byte.
+        println!();
+    }
+
+    close_bytes[31] = bytes[31] ^ 255u8;
+
+    for (i, byte) in close_bytes.iter().enumerate() {
+        // Print context: the index and value (decimal and hex) of the current byte.
+        print!("Byte {:02} [{:3} / {:#04x}]: ", i, byte, byte);
+
+        // A `u8` has 8 bits. We iterate from 7 down to 0 to print
+        // the most significant bit (MSB) first.
+        for j in (0..8).rev() {
+            // Create a "mask" by shifting the number 1 to the left `j` times.
+            // For j=7, mask is 10000000
+            // For j=0, mask is 00000001
+            let mask = 1 << j;
+
+            // Use the bitwise AND operator `&` to check if the bit at the mask's
+            // position is set. If the result is not 0, the bit is 1.
+            if byte & mask == 0 {
+                print!("0");
+            } else {
+                print!("1");
+            }
+        }
+        // Add a newline to separate the output for each byte.
+        println!();
+    }
+
+    let keypair =
+        identity::Keypair::ed25519_from_bytes(close_bytes).expect("only errors on wrong length");
+    println!("103:{}", keypair.public().to_peer_id());
+    keypair.public().to_peer_id()
 }
 
 #[tokio::main]
