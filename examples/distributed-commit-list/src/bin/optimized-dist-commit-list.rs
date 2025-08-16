@@ -20,7 +20,7 @@ use tokio::{
     io::{self, AsyncBufReadExt},
     select,
 };
-use tracing::{debug, info, trace, Level};
+use tracing::{debug, info, trace, warn, Level};
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 // --- Top-level NetworkBehaviour Definition ---
@@ -90,19 +90,13 @@ fn generate_ed25519(secret_key_seed: u8) -> identity::Keypair {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     init_subscriber();
-
     let args = Args::parse();
-    debug!("args={:?}", args);
-
+    warn!("args={:?}", args);
     let keypair = generate_ed25519(args.secret.unwrap_or(0));
     let peer_id = PeerId::from(keypair.public());
-    info!("Local PeerId: {}", peer_id);
-
-    tracing::debug!("args={:?}", args);
-    // Create a static known PeerId based on given secret
+    warn!("Local PeerId: {}", peer_id);
     let keypair: identity::Keypair = generate_ed25519(args.secret.clone().unwrap_or(0));
     let keypair_clone: identity::Keypair = generate_ed25519(args.secret.unwrap_or(0));
-
     let public_key = keypair.public();
     let peer_id = PeerId::from_public_key(&public_key);
     let kad_store_config = MemoryStoreConfig {
@@ -113,8 +107,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     };
     let kad_memstore = MemoryStore::with_config(peer_id.clone(), kad_store_config.clone());
     let mut kad_config = KadConfig::default();
-
-    // --- Create the Swarm ---
     let mut swarm = libp2p::SwarmBuilder::with_existing_identity(keypair)
         .with_tokio()
         .with_tcp(
@@ -130,22 +122,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 max_records: usize::MAX,
                 max_value_bytes: usize::MAX,
             };
-            //    let kad_memstore = MemoryStore::with_config(peer_id.clone(), kad_store_config.clone());
-
-            // Configure the Kademlia behaviour for application-specific data
             let mut kad_config = kad::Config::default();
-            kad_config.set_query_timeout(Duration::from_secs(30));
-            kad_config.set_replication_factor(std::num::NonZeroUsize::new(10).unwrap());
-            kad_config.set_publication_interval(Some(Duration::from_secs(3600)));
-            kad_config.disjoint_query_paths(true);
+            kad_config.set_query_timeout(Duration::from_secs(120));
+            kad_config.set_replication_factor(std::num::NonZeroUsize::new(20).unwrap());
+            kad_config.set_publication_interval(Some(Duration::from_secs(600)));
+            kad_config.disjoint_query_paths(false);
             let kad_store = MemoryStore::with_config(peer_id.clone(), kad_store_config);
-            //            let kad_store = kad::store::MemoryStore::new(key.public().to_peer_id());
-
-            // Configure a separate Kademlia behaviour for IPFS bootstrapping
             let mut ipfs_cfg = kad::Config::new(IPFS_PROTO_NAME);
             ipfs_cfg.set_query_timeout(Duration::from_secs(5 * 60));
             let ipfs_store = kad::store::MemoryStore::new(key.public().to_peer_id());
-
             Ok(Behaviour {
                 ipfs: kad::Behaviour::with_config(key.public().to_peer_id(), ipfs_store, ipfs_cfg),
                 kademlia: kad::Behaviour::with_config(
@@ -185,8 +170,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let bootstrap_node: Multiaddr = "/dnsaddr/bootstrap.libp2p.io"
         .parse()
         .expect("Hardcoded bootstrap address should be valid");
-
-    // --- Bootstrap the Swarm ---
     for peer in &IPFS_BOOTNODES {
         let peer_id: PeerId = peer.parse()?;
         let addr: Multiaddr = "/dnsaddr/bootstrap.libp2p.io".parse()?;
@@ -203,13 +186,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .set_mode(Some(kad::Mode::Server));
 
     swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
-
-    // --- Initial Data Publishing from Git Repo ---
     info!("Starting initial git repository scan and data publishing...");
     if let Err(e) = run(&args, &mut swarm).await {
-        eprintln!("Error during initial git processing: {}", e);
+        warn!("Error during initial git processing: {}", e);
     }
-    info!("Initial data publishing complete.");
+    debug!("Initial data publishing complete.");
 
     // --- Main Event Loop ---
     let mut stdin = io::BufReader::new(io::stdin()).lines();
@@ -229,11 +210,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
 async fn handle_swarm_event(swarm: &mut Swarm<Behaviour>, event: SwarmEvent<BehaviourEvent>) {
     match event {
         SwarmEvent::NewListenAddr { address, .. } => {
-            info!("Listening on {address}");
+            warn!("Listening on {address}");
         }
         SwarmEvent::Behaviour(BehaviourEvent::Mdns(mdns::Event::Discovered(list))) => {
             for (peer_id, multiaddr) in list {
-                info!("mDNS discovered a new peer: {peer_id}");
+                info!("mDNS discovered a new peer: {peer_id}\n{multiaddr}");
                 swarm
                     .behaviour_mut()
                     .kademlia
@@ -255,25 +236,25 @@ async fn handle_swarm_event(swarm: &mut Swarm<Behaviour>, event: SwarmEvent<Beha
                 );
             }
             kad::QueryResult::GetRecord(Err(err)) => {
-                eprintln!("Failed to get record: {err:?}");
+                warn!("Failed to get record: {err:?}");
             }
             kad::QueryResult::PutRecord(Ok(kad::PutRecordOk { key })) => {
-                info!(
+                debug!(
                     "Successfully PUT record for key: {:?}",
                     std::str::from_utf8(key.as_ref())
                 );
             }
             kad::QueryResult::PutRecord(Err(err)) => {
-                eprintln!("Failed to PUT record: {err:?}");
+                trace!("Failed to PUT record: {err:?}");
             }
             kad::QueryResult::StartProviding(Ok(kad::AddProviderOk { key, .. })) => {
-                info!(
+                debug!(
                     "Successfully started PROVIDING key: {:?}",
                     std::str::from_utf8(key.as_ref())
                 );
             }
             kad::QueryResult::StartProviding(Err(err)) => {
-                eprintln!("Failed to start PROVIDING: {err:?}");
+                warn!("Failed to start PROVIDING: {err:?}");
             }
             _ => {}
         },
@@ -305,18 +286,36 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<kad::store::MemoryStore
                 let key = kad::RecordKey::new(&key_str);
                 let value = value_str.as_bytes().to_vec();
                 let record = kad::Record {
-                    key,
+                    key: key.clone(),
                     value,
                     publisher: None,
                     expires: None,
                 };
-                if let Err(e) = kademlia.put_record(record, kad::Quorum::One) {
+                if let Err(e) = kademlia.put_record(record, kad::Quorum::Majority) {
+                    eprintln!("Failed to store record locally: {:?}", e);
+                }
+                if let Err(e) = kademlia.start_providing(key) {
                     eprintln!("Failed to store record locally: {:?}", e);
                 }
             } else {
                 eprintln!("Usage: PUT <key> <value>");
             }
         }
+        Some("PUT_PROVIDER") => {
+            let key = {
+                match args.next() {
+                    Some(key) => kad::RecordKey::new(&key),
+                    None => {
+                        eprint!("gnostr> ");
+                        return;
+                    }
+                }
+            };
+            if let Err(e) = kademlia.start_providing(key) {
+                eprintln!("Failed to store record locally: {:?}", e);
+            }
+        }
+
         Some("QUIT") | Some("Q") | Some("EXIT") => {
             std::process::exit(0);
         }
@@ -329,8 +328,6 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<kad::store::MemoryStore
 async fn run(args: &Args, swarm: &mut Swarm<Behaviour>) -> Result<(), Box<dyn Error>> {
     let path = args.flag_git_dir.as_ref().map_or(".", |s| &s[..]);
     let repo = Repository::discover(path)?;
-
-    // --- Publish Tags ---
     if let Ok(tag_names) = repo.tag_names(None) {
         for tag_name_opt in tag_names.iter() {
             if let Some(tag_name) = tag_name_opt {
@@ -345,14 +342,12 @@ async fn run(args: &Args, swarm: &mut Swarm<Behaviour>) -> Result<(), Box<dyn Er
                     swarm
                         .behaviour_mut()
                         .kademlia
-                        .put_record(record, kad::Quorum::One)?;
+                        .put_record(record, kad::Quorum::Majority)?;
                     swarm.behaviour_mut().kademlia.start_providing(key)?;
                 }
             }
         }
     }
-
-    // --- Prepare Commit Traversal (Revwalk) ---
     let mut revwalk = repo.revwalk()?;
     let base = if args.flag_reverse {
         git2::Sort::REVERSE
@@ -372,22 +367,18 @@ async fn run(args: &Args, swarm: &mut Swarm<Behaviour>) -> Result<(), Box<dyn Er
     if args.arg_commit.is_empty() {
         revwalk.push_head()?;
     } else {
-        // (Simplified revspec logic for brevity, original logic can be retained if complex specs are needed)
         for commit_spec in &args.arg_commit {
             let obj = repo.revparse_single(commit_spec)?;
             revwalk.push(obj.id())?;
         }
     }
 
-    // --- Iterate and Publish Commits ---
     let revwalk_iterator = revwalk
         .filter_map(Result::ok)
         .filter_map(|id| repo.find_commit(id).ok());
 
     for commit in revwalk_iterator.take(args.flag_max_count.unwrap_or(usize::MAX)) {
         let commit_id_str = commit.id().to_string();
-
-        // Publish commit message
         let msg_key = kad::RecordKey::new(&commit_id_str);
         let msg_record = kad::Record {
             key: msg_key.clone(),
@@ -398,10 +389,8 @@ async fn run(args: &Args, swarm: &mut Swarm<Behaviour>) -> Result<(), Box<dyn Er
         swarm
             .behaviour_mut()
             .kademlia
-            .put_record(msg_record, kad::Quorum::One)?;
+            .put_record(msg_record, kad::Quorum::Majority)?;
         swarm.behaviour_mut().kademlia.start_providing(msg_key)?;
-
-        // Publish commit diff
         if let Ok(diff_bytes) = get_commit_diff_as_bytes(&repo, &commit) {
             let diff_key_str = format!("{}/diff", commit_id_str);
             let diff_key = kad::RecordKey::new(&diff_key_str);
@@ -463,5 +452,3 @@ struct Args {
     #[clap(last = true)]
     arg_spec: Vec<String>,
 }
-
-// (impl Args methods for min/max parents can be kept if needed, but are omitted here as they weren't used in the simplified `run` function)
