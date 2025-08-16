@@ -208,6 +208,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
     init_subscriber();
     let args = Args::parse();
     warn!("args={:?}", args);
+
+    if let Some(ref peer) = args.peer {}
+    if let Some(ref multiaddr) = args.multiaddr {}
+
+    if let Some(true) = Some(args.peer.is_some()) {}
+    if let Some(true) = Some(args.multiaddr.is_some()) {}
+
     //let keypair = generate_ed25519(args.secret.unwrap_or(0));
     let keypair = generate_ed25519(0);
     let peer_id = PeerId::from(keypair.public());
@@ -545,6 +552,10 @@ async fn run(args: &Args, swarm: &mut Swarm<Behaviour>) -> Result<(), Box<dyn Er
 struct Args {
     #[clap(long)]
     secret: Option<u8>,
+    #[clap(long)]
+    peer: Option<String>,
+    #[clap(long)]
+    multiaddr: Option<Multiaddr>,
     #[clap(long)]
     flag_topo_order: bool,
     #[clap(long)]
