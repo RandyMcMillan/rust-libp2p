@@ -5,7 +5,7 @@ use git2::{Commit, Diff, DiffOptions, ObjectType, Oid, Repository, Signature, Ti
 use git2::{DiffFormat, Error as GitError, Pathspec};
 use libp2p::StreamProtocol;
 use libp2p::{
-    identify, identity,
+    gossipsub, identify, identity,
     identity::Keypair,
     kad,
     kad::{
@@ -15,49 +15,40 @@ use libp2p::{
     swarm::{NetworkBehaviour, SwarmEvent},
     tcp, yamux, PeerId,
 };
-use std::str;
-use std::{error::Error, time::Duration};
+use std::{
+    collections::hash_map::DefaultHasher,
+    error::Error as StdError,
+    hash::{Hash, Hasher},
+    str,
+    time::Duration, //thread,
+};
 use tokio::{
     io::{self, AsyncBufReadExt},
     select,
 };
+
 use tracing::{debug, info, trace, warn, Level};
 use tracing_log::log;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{fmt, EnvFilter};
 
-fn init_subscriber(_level: Level) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
+fn init_subscriber(_level: Level) -> Result<(), Box<dyn StdError + Send + Sync + 'static>> {
     let fmt_layer = fmt::layer().with_target(false);
     let filter_layer = EnvFilter::try_from_default_env()
         .or_else(|_| EnvFilter::try_new("")) //default
         .unwrap();
-
     tracing_subscriber::registry()
         .with(filter_layer)
         .with(fmt_layer)
         .init();
-
     tracing_subscriber::fmt()
-        // Setting a filter based on the value of the RUST_LOG environment variable
-        // Examples:
-        //
-        // RUST_LOG="off,libp2p_mdns::behaviour=off"
-        // RUST_LOG="warn,libp2p_mdns::behaviour=off"
-        // RUST_LOG="debug,libp2p_mdns::behaviour=off"
-        //
         .with_env_filter(EnvFilter::from_default_env())
-        //.with_max_level(level)
-        // Configure the subscriber to emit logs in JSON format.
         .json()
-        // Configure the subscriber to flatten event fields in the output JSON objects.
-        //.flatten_event(true)
-        // Set the subscriber as the default, returning an error if this fails.
         .try_init()?;
-
     Ok(())
 }
 
-async fn get_blockheight() -> Result<String, Box<dyn Error>> {
+async fn get_blockheight() -> Result<String, Box<dyn StdError>> {
     let client = reqwest::Client::builder()
         .build()
         .expect("should be able to build reqwest client");
@@ -92,84 +83,51 @@ fn get_commit_message_bytes(repo: &Repository, commit_id: &str) -> Result<Vec<u8
 
 fn get_commit_diff(repo: &Repository, commit_id: Oid) -> Result<Diff, git2::Error> {
     let commit = repo.find_commit(commit_id)?;
-
-    // Get the tree of the current commit
     let tree = commit.tree()?;
-
-    // Get the tree of the first parent commit (if it exists)
     let parent_tree = if commit.parent_count() > 0 {
         Some(commit.parent(0)?.tree()?)
     } else {
         None
     };
-
-    // Create a diff between the parent tree and the current tree
     let diff = repo.diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), None)?;
-
     Ok(diff)
 }
 
 fn get_commit_diff_as_string(repo: &Repository, commit_id: Oid) -> Result<String, git2::Error> {
     let commit = repo.find_commit(commit_id)?;
-
-    // Get the tree of the current commit
     let tree = commit.tree()?;
-
-    // Get the tree of the first parent commit (if it exists)
     let parent_tree = if commit.parent_count() > 0 {
         Some(commit.parent(0)?.tree()?)
     } else {
         None
     };
-
-    // Create a diff between the parent tree and the current tree
     let diff = repo.diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), None)?;
-
-    // Create a buffer to write the diff to
     let mut buf = Vec::new();
-
-    // Use Diff::print to write the diff content to the buffer
     diff.print(DiffFormat::Patch, |_, _, line| {
         buf.extend_from_slice(line.content());
         true
     })?;
-
     let diff_string = String::from_utf8(buf);
-
-    // Return the successful result.
     Ok(diff_string.expect(""))
 }
 
 fn get_commit_diff_as_bytes(repo: &Repository, commit_id: Oid) -> Result<Vec<u8>, git2::Error> {
     let commit = repo.find_commit(commit_id)?;
-
-    // Get the tree of the current commit
     let tree = commit.tree()?;
-
-    // Get the tree of the first parent commit (if it exists)
     let parent_tree = if commit.parent_count() > 0 {
         Some(commit.parent(0)?.tree()?)
     } else {
         None
     };
-
-    // Create a diff between the parent tree and the current tree
     let diff = repo.diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), None)?;
-
-    // Create a buffer to write the diff to
     let mut buf = Vec::new();
-
-    // Use Diff::print to write the diff content to the buffer
     diff.print(DiffFormat::Patch, |_, _, line| {
         buf.extend_from_slice(line.content());
         true
     })?;
-
-    // Return the buffer containing the diff bytes
     Ok(buf)
 }
 
-// A simple utility function to print a Kademlia record.
 fn print_record(record: Record) {
     println!("--- Kademlia Record ---");
     println!("Key: {:?}", record.key);
@@ -184,36 +142,21 @@ fn print_record(record: Record) {
 
 fn get_commit_id_of_tag(repo_path: &str, tag_name: &str) -> Result<String, git2::Error> {
     let repo = Repository::discover(repo_path)?;
-
-    // Find the tag reference (e.g., "refs/tags/v1.0.0")
     let reference_name = format!("refs/tags/{}", tag_name);
     let reference = repo.find_reference(&reference_name)?;
-
-    // Peel the reference to get the underlying object (which should be a commit)
     let object = reference.peel(ObjectType::Commit)?;
-
-    // Get the OID (commit hash) of the object
     let commit_id = object.id();
-
     Ok(commit_id.to_string())
 }
 
 fn generate_ed25519(secret_key_seed: u8) -> identity::Keypair {
     let mut bytes = [0u8; 32];
     bytes[0] = secret_key_seed;
-
     identity::Keypair::ed25519_from_bytes(bytes).expect("only errors on wrong length")
 }
-//fn generate_ed25519(secret_key_seed: &mut u8) -> identity::Keypair {
-////    let mut bytes = [0u8; 32];
-//    //let mut bytes: &[u8] = secret_key_seed.as_bytes();
-//    //bytes[0] = secret_key_seed;
-//
-//    identity::Keypair::ed25519_from_bytes(secret_key_seed.as_bytes_mut()).expect("only errors on wrong length")
-//}
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+async fn main() -> Result<(), Box<dyn StdError>> {
     let _ = init_subscriber(Level::WARN);
 
     //let blockheight = get_blockheight().await.unwrap();
@@ -267,9 +210,35 @@ async fn main() -> Result<(), Box<dyn Error>> {
         identify: identify::Behaviour,
         rendezvous: rendezvous::server::Behaviour,
         ping: ping::Behaviour,
+        gossipsub: gossipsub::Behaviour,
     }
 
-    // let mut swarm = libp2p::SwarmBuilder::with_new_identity()
+    let message_id_fn = |message: &gossipsub::Message| {
+        let mut s = DefaultHasher::new();
+        message.data.hash(&mut s);
+        debug!("message:\n{0:?}", message);
+        debug!("message.data:\n{0:?}", message.data);
+        debug!("message.source:\n{0:?}", message.source);
+        debug!("message.source:\n{0:1?}", message.source);
+        debug!("message.source.peer_id:\n{0:2?}", message.source.unwrap());
+        //TODO https://docs.rs/gossipsub/latest/gossipsub/trait.DataTransform.html
+        //send Recieved message back
+        debug!(
+            "message.source.peer_id:\n{0:3}",
+            message.source.unwrap().to_string()
+        );
+        debug!("message.sequence_number:\n{0:?}", message.sequence_number);
+        debug!("message.topic:\n{0:?}", message.topic);
+        debug!("message.topic.hash:\n{0:0}", message.topic.clone());
+        //println!("{:?}", s);
+        gossipsub::MessageId::from(s.finish().to_string())
+    };
+    let gossipsub_config = gossipsub::ConfigBuilder::default()
+        .heartbeat_interval(Duration::from_secs(1))
+        .validation_mode(gossipsub::ValidationMode::Permissive)
+        .message_id_fn(message_id_fn)
+        .build()
+        .map_err(|msg| io::Error::new(io::ErrorKind::Other, msg))?;
     let mut swarm = libp2p::SwarmBuilder::with_existing_identity(keypair)
         .with_tokio()
         .with_tcp(
@@ -284,6 +253,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
             ipfs_cfg.set_query_timeout(Duration::from_secs(5 * 60));
             let ipfs_store = kad::store::MemoryStore::new(key.public().to_peer_id());
             Ok(Behaviour {
+                gossipsub: gossipsub::Behaviour::new(
+                    gossipsub::MessageAuthenticity::Signed(key.clone()),
+                    gossipsub_config,
+                )
+                .expect(""),
+
                 ipfs: kad::Behaviour::with_config(key.public().to_peer_id(), ipfs_store, ipfs_cfg),
                 identify: identify::Behaviour::new(identify::Config::new(
                     "/yamux/1.0.0".to_string(),
@@ -308,9 +283,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         })?
         .build();
 
-    // Add the bootnodes to the local routing table. `libp2p-dns` built
-    // into the `transport` resolves the `dnsaddr` when Kademlia tries
-    // to dial these nodes.
     for peer in &IPFS_BOOTNODES {
         swarm
             .behaviour_mut()
@@ -322,168 +294,154 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .add_address(&peer.parse()?, "/dnsaddr/bootstrap.libp2p.io".parse()?);
     }
 
-    // TODO get weeble/blockheight/wobble
     let listen_on = swarm.listen_on("/ip4/0.0.0.0/tcp/62649".parse().unwrap());
     tracing::debug!("listen_on={}", listen_on.unwrap());
     swarm.behaviour_mut().kademlia.set_mode(Some(Mode::Server));
     tracing::info!("swarm.local_peer_id()={:?}", swarm.local_peer_id());
-    //net work is primed
-
-    //run
     //let result = run(&args, &mut swarm.behaviour_mut().kademlia).await;
     //tracing::trace!("result={:?}", result);
-
-    //push commit hashes and commit diffs
-
-    // Read full lines from stdin
     let mut stdin = io::BufReader::new(io::stdin()).lines();
-
-    // Listen on all interfaces and whatever port the OS assigns.
-    // TODO get weeble/blockheight/wobble
     let listen_on = swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
     tracing::debug!("listen_on={}", listen_on);
 
     let mut ran: bool = false;
-    // Kick it off.
     loop {
-        //run
         //let result = run(&args, &mut swarm.behaviour_mut().kademlia, peer_id).await;
         //tracing::trace!("result={:?}", result);
-
         select! {
-                        Ok(Some(line)) = stdin.next_line() => {
-                            tracing::trace!("line.len()={}", line.len());
-                            if line.len() <= 3 {
-                            tracing::debug!("{:?}", swarm.local_peer_id());
-                            for address in swarm.external_addresses() {
-                                tracing::trace!("{:?}", address);
-                            }
-                            for peer in swarm.connected_peers() {
-                                tracing::trace!("{:?}", peer);
-                            }
-                            }
-                            handle_input_line(&mut swarm.behaviour_mut().kademlia, line).await;
-                        }
+               Ok(Some(line)) = stdin.next_line() => {
+                   tracing::trace!("line.len()={}", line.len());
+                   if line.len() <= 3 {
+                   tracing::debug!("{:?}", swarm.local_peer_id());
+                   for address in swarm.external_addresses() {
+                       tracing::trace!("{:?}", address);
+                   }
+                   for peer in swarm.connected_peers() {
+                       tracing::trace!("{:?}", peer);
+                   }
+                   }
+                   handle_input_line(&mut swarm.behaviour_mut().kademlia, line).await;
+               }
 
-                        event = swarm.select_next_some() => match event {
-
-
-                        //match event
-
-                            SwarmEvent::ConnectionEstablished { peer_id, .. } => {
-                                tracing::trace!("Connected to {}", peer_id);
-                            }
-                            SwarmEvent::ConnectionClosed { peer_id, .. } => {
-                                tracing::trace!("Disconnected from {}", peer_id);
-                            }
-                            SwarmEvent::Behaviour(BehaviourEvent::Rendezvous(
-                                rendezvous::server::Event::PeerRegistered { peer, registration },
-                            )) => {
-                                tracing::info!(
-                                    "Peer {} registered for namespace '{}'",
-                                    peer,
-                                    registration.namespace
-                                );
-                            }
-                            SwarmEvent::Behaviour(BehaviourEvent::Rendezvous(
-                                rendezvous::server::Event::DiscoverServed {
-                                    enquirer,
-                                    registrations,
-                                },
-                            )) => {
-                                tracing::info!(
-                                    "Served peer {} with {} registrations",
-                                    enquirer,
-                                    registrations.len()
-                                );
-                            }
-                            //other => {
-                            //    tracing::debug!("Unhandled {:?}", other);
-                            //}
-
-                        SwarmEvent::NewListenAddr { address, .. } => {
-                            tracing::info!("Listening in {address:?}");
-                        }
-
-                        SwarmEvent::Behaviour(BehaviourEvent::Mdns(mdns::Event::Discovered(list))) => {
-                            for (peer_id, multiaddr) in list {
-                                swarm.behaviour_mut().kademlia.add_address(&peer_id, multiaddr.clone());
-                                tracing::info!("{}", peer_id.clone());
-                                tracing::info!("{}", multiaddr.clone());
-                                println!("{}", peer_id.clone());
-                                println!("{}", multiaddr.clone());
-                            }
-                        }
-
-                        SwarmEvent::Behaviour(BehaviourEvent::Kademlia(kad::Event::OutboundQueryProgressed { result, ..})) => {
-                        match result {
-                            kad::QueryResult::GetProviders(Ok(kad::GetProvidersOk::FoundProviders { key, providers, .. })) => {
-                                for peer in providers {
-                                    //tracing::info!(
-                                    println!(
-                                        "Peer {peer:?} provides key {:?}",
-                                        std::str::from_utf8(key.as_ref()).unwrap()
-                                    );
-                                }
-                            }
-                            kad::QueryResult::GetProviders(Err(err)) => {
-                                //eprintln!("Failed to get providers: {err:?}");
-        //                        tracing::info!("Failed to get providers: {err:?}");
-                                println!("Failed to get providers: {err:?}");
-                            }
-                            kad::QueryResult::GetRecord(
-                                Ok(
-                                kad::GetRecordOk::FoundRecord(
-                                    kad::PeerRecord {
-                                    record: kad::Record { key, value, .. },
-                                    ..
-                                }
-                                )
-                                )
-                                ) => {
-                                //tracing::info!("{}",record);
-
-                                println!(
-                                    "{{\"commit\":{:?},\"message\":{:?}}}",
-                                    std::str::from_utf8(key.as_ref()).unwrap(),
-                                    std::str::from_utf8(&value).unwrap(),
-                                );
+               event = swarm.select_next_some() => match event {
 
 
-                            }
-                            //kad::QueryResult::GetRecord(Ok(_)) => {}
-                            kad::QueryResult::GetRecord(Err(err)) => {
-                                //eprintln!("Failed to get record: {err:?}");
-                                tracing::info!("Failed to get record: {err:?}");
-                            }
-                            kad::QueryResult::PutRecord(Ok(kad::PutRecordOk { key })) => {
-                                tracing::info!(
-                                    "PUT {:?}",
-                                    std::str::from_utf8(key.as_ref()).unwrap()
-                                );
-                            }
-                            kad::QueryResult::PutRecord(Err(err)) => {
-                                //eprintln!("Failed to put record: {err:?}");
-                                tracing::debug!("Failed to put record: {err:?}");
-                            }
-                            kad::QueryResult::StartProviding(Ok(kad::AddProviderOk { key })) => {
-                                tracing::debug!(
-                                    "PUT_PROVIDER {:?}",
-                                    std::str::from_utf8(key.as_ref()).unwrap()
-                                );
-                            }
-                            kad::QueryResult::StartProviding(Err(err)) => {
-                                //eprintln!("Failed to put provider record: {err:?}");
-                                tracing::trace!("Failed to put provider record: {err:?}");
-                            }
-                            _ => {}
-                        }
-                    }
-                    other => {
-                        tracing::debug!("Unhandled {:?}", other);
-                    }
-                        }
-                }
+               //match event
+
+                   SwarmEvent::ConnectionEstablished { peer_id, .. } => {
+                       tracing::trace!("Connected to {}", peer_id);
+                   }
+                   SwarmEvent::ConnectionClosed { peer_id, .. } => {
+                       tracing::trace!("Disconnected from {}", peer_id);
+                   }
+                   SwarmEvent::Behaviour(BehaviourEvent::Rendezvous(
+                       rendezvous::server::Event::PeerRegistered { peer, registration },
+                   )) => {
+                       tracing::info!(
+                           "Peer {} registered for namespace '{}'",
+                           peer,
+                           registration.namespace
+                       );
+                   }
+                   SwarmEvent::Behaviour(BehaviourEvent::Rendezvous(
+                       rendezvous::server::Event::DiscoverServed {
+                           enquirer,
+                           registrations,
+                       },
+                   )) => {
+                       tracing::info!(
+                           "Served peer {} with {} registrations",
+                           enquirer,
+                           registrations.len()
+                       );
+                   }
+                   //other => {
+                   //    tracing::debug!("Unhandled {:?}", other);
+                   //}
+
+               SwarmEvent::NewListenAddr { address, .. } => {
+                   tracing::info!("Listening in {address:?}");
+               }
+
+               SwarmEvent::Behaviour(BehaviourEvent::Mdns(mdns::Event::Discovered(list))) => {
+                   for (peer_id, multiaddr) in list {
+                       swarm.behaviour_mut().kademlia.add_address(&peer_id, multiaddr.clone());
+                       tracing::info!("{}", peer_id.clone());
+                       tracing::info!("{}", multiaddr.clone());
+                       println!("{}", peer_id.clone());
+                       println!("{}", multiaddr.clone());
+                   }
+               }
+
+               SwarmEvent::Behaviour(BehaviourEvent::Kademlia(kad::Event::OutboundQueryProgressed { result, ..})) => {
+               match result {
+                   kad::QueryResult::GetProviders(Ok(kad::GetProvidersOk::FoundProviders { key, providers, .. })) => {
+                       for peer in providers {
+                           //tracing::info!(
+                           println!(
+                               "Peer {peer:?} provides key {:?}",
+                               std::str::from_utf8(key.as_ref()).unwrap()
+                           );
+                       }
+                   }
+                   kad::QueryResult::GetProviders(Err(err)) => {
+                       //eprintln!("Failed to get providers: {err:?}");
+                       //tracing::info!("Failed to get providers: {err:?}");
+                       println!("Failed to get providers: {err:?}");
+                   }
+                   kad::QueryResult::GetRecord(
+                       Ok(
+                       kad::GetRecordOk::FoundRecord(
+                           kad::PeerRecord {
+                           record: kad::Record { key, value, .. },
+                           ..
+                       }
+                       )
+                       )
+                       ) => {
+                       //tracing::info!("{}",record);
+
+                       println!(
+                           "{{\"commit\":{:?},\"message\":{:?}}}",
+                           std::str::from_utf8(key.as_ref()).unwrap(),
+                           std::str::from_utf8(&value).unwrap(),
+                       );
+
+
+                   }
+                   //kad::QueryResult::GetRecord(Ok(_)) => {}
+                   kad::QueryResult::GetRecord(Err(err)) => {
+                       //eprintln!("Failed to get record: {err:?}");
+                       tracing::info!("Failed to get record: {err:?}");
+                   }
+                   kad::QueryResult::PutRecord(Ok(kad::PutRecordOk { key })) => {
+                       tracing::info!(
+                           "PUT {:?}",
+                           std::str::from_utf8(key.as_ref()).unwrap()
+                       );
+                   }
+                   kad::QueryResult::PutRecord(Err(err)) => {
+                       //eprintln!("Failed to put record: {err:?}");
+                       tracing::debug!("Failed to put record: {err:?}");
+                   }
+                   kad::QueryResult::StartProviding(Ok(kad::AddProviderOk { key })) => {
+                       tracing::debug!(
+                           "PUT_PROVIDER {:?}",
+                           std::str::from_utf8(key.as_ref()).unwrap()
+                       );
+                   }
+                   kad::QueryResult::StartProviding(Err(err)) => {
+                       //eprintln!("Failed to put provider record: {err:?}");
+                       tracing::trace!("Failed to put provider record: {err:?}");
+                   }
+                   _ => {}
+               }
+           }
+           other => {
+               tracing::debug!("Unhandled {:?}", other);
+           }
+               }
+        }
 
         if !ran {
             let result = run(&args, &mut swarm.behaviour_mut().kademlia, peer_id).await;
