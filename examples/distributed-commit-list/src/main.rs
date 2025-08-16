@@ -277,6 +277,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             noise::Config::new,
             yamux::Config::default,
         )?
+        .with_quic()
         .with_dns()?
         .with_behaviour(|key| {
             let mut ipfs_cfg = kad::Config::new(IPFS_PROTO_NAME);
