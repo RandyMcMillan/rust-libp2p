@@ -1,191 +1,226 @@
-#![doc = include_str!("../README.md")]
+#![doc = include_str!("../../README.md")]
 use clap::Parser;
 use futures::stream::StreamExt;
-use git2::{Commit, Diff, DiffOptions, ObjectType, Oid, Repository, Signature, Time};
+use git2::{Commit, DiffOptions, ObjectType, Oid, Repository, Signature, Time};
 use git2::{DiffFormat, Error as GitError, Pathspec};
 use libp2p::StreamProtocol;
 use libp2p::{
-    gossipsub, identify, identity,
-    identity::Keypair,
-    kad,
-    kad::{
-        store::MemoryStore, store::MemoryStoreConfig, Config as KadConfig, Mode, Record, RecordKey,
-    },
+    identify, identity, kad,
+    kad::store::MemoryStore,
+    kad::store::MemoryStoreConfig,
+    kad::Config as KadConfig,
     mdns, noise, ping, rendezvous,
     swarm::{NetworkBehaviour, SwarmEvent},
-    tcp, yamux, PeerId,
+    tcp, yamux, Multiaddr, PeerId, Swarm,
 };
-use std::{
-    collections::hash_map::DefaultHasher,
-    error::Error as StdError,
-    hash::{Hash, Hasher},
-    str,
-    time::Duration, //thread,
-};
+use std::error::Error;
+use std::str;
+use std::time::Duration;
 use tokio::{
     io::{self, AsyncBufReadExt},
     select,
 };
-
 use tracing::{debug, info, trace, warn, Level};
-use tracing_log::log;
-use tracing_subscriber::prelude::*;
-use tracing_subscriber::{fmt, EnvFilter};
+use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
-fn init_subscriber(_level: Level) -> Result<(), Box<dyn StdError + Send + Sync + 'static>> {
-    let fmt_layer = fmt::layer().with_target(false);
-    let filter_layer = EnvFilter::try_from_default_env()
-        .or_else(|_| EnvFilter::try_new("")) //default
-        .unwrap();
+// --- Top-level NetworkBehaviour Definition ---
+#[derive(NetworkBehaviour)]
+struct Behaviour {
+    ipfs: kad::Behaviour<kad::store::MemoryStore>,
+    kademlia: kad::Behaviour<kad::store::MemoryStore>,
+    mdns: mdns::tokio::Behaviour,
+    identify: identify::Behaviour,
+    rendezvous: rendezvous::server::Behaviour,
+    ping: ping::Behaviour,
+}
+
+fn init_subscriber() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
+    let filter_layer = EnvFilter::try_from_default_env().or_else(|_| EnvFilter::try_new("info"))?;
+
+    let fmt_layer = fmt::layer().with_target(false).with_ansi(true);
+
     tracing_subscriber::registry()
         .with(filter_layer)
         .with(fmt_layer)
         .init();
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
-        .json()
-        .try_init()?;
+
     Ok(())
 }
 
-async fn get_blockheight() -> Result<String, Box<dyn StdError>> {
-    let client = reqwest::Client::builder()
-        .build()
-        .expect("should be able to build reqwest client");
-    let blockheight = client
-        .get("https://mempool.space/api/blocks/tip/height")
-        .send()
-        .await?;
-    tracing::debug!("mempool.space status: {}", blockheight.status());
-    if blockheight.status() != reqwest::StatusCode::OK {
-        tracing::debug!("didn't get OK status: {}", blockheight.status());
-        Ok(String::from(">>>>>"))
-    } else {
-        let blockheight = blockheight.text().await?;
-        tracing::debug!("{}", blockheight);
-        Ok(blockheight)
-    }
-}
-
-const IPFS_BOOTNODES: [&str; 4] = [
+const IPFS_BOOTNODES: [&str; 6] = [
     "QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
     "QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa",
     "QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
     "QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt",
+    "12D3KooWH1URV3uTNQW6SZ1UFDnHN8NXwznAA8JeETTBm8oimjh9",
+    "12D3KooWFhXabKDwALpzqMbto94sB7rvmZ6M28hs9Y9xSopDKwQr",
 ];
 const IPFS_PROTO_NAME: StreamProtocol = StreamProtocol::new("/ipfs/kad/1.0.0");
 
-fn get_commit_message_bytes(repo: &Repository, commit_id: &str) -> Result<Vec<u8>, git2::Error> {
-    let oid = Oid::from_str(commit_id)?;
-    let commit = repo.find_commit(oid)?;
-    Ok(commit.message_bytes().to_vec())
-}
-
-fn get_commit_diff(repo: &Repository, commit_id: Oid) -> Result<Diff, git2::Error> {
-    let commit = repo.find_commit(commit_id)?;
+fn get_commit_diff_as_bytes(repo: &Repository, commit: &Commit) -> Result<Vec<u8>, git2::Error> {
     let tree = commit.tree()?;
     let parent_tree = if commit.parent_count() > 0 {
         Some(commit.parent(0)?.tree()?)
     } else {
         None
     };
-    let diff = repo.diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), None)?;
-    Ok(diff)
-}
 
-fn get_commit_diff_as_string(repo: &Repository, commit_id: Oid) -> Result<String, git2::Error> {
-    let commit = repo.find_commit(commit_id)?;
-    let tree = commit.tree()?;
-    let parent_tree = if commit.parent_count() > 0 {
-        Some(commit.parent(0)?.tree()?)
-    } else {
-        None
-    };
     let diff = repo.diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), None)?;
     let mut buf = Vec::new();
+
     diff.print(DiffFormat::Patch, |_, _, line| {
         buf.extend_from_slice(line.content());
         true
     })?;
-    let diff_string = String::from_utf8(buf);
-    Ok(diff_string.expect(""))
-}
 
-fn get_commit_diff_as_bytes(repo: &Repository, commit_id: Oid) -> Result<Vec<u8>, git2::Error> {
-    let commit = repo.find_commit(commit_id)?;
-    let tree = commit.tree()?;
-    let parent_tree = if commit.parent_count() > 0 {
-        Some(commit.parent(0)?.tree()?)
-    } else {
-        None
-    };
-    let diff = repo.diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), None)?;
-    let mut buf = Vec::new();
-    diff.print(DiffFormat::Patch, |_, _, line| {
-        buf.extend_from_slice(line.content());
-        true
-    })?;
     Ok(buf)
 }
 
-fn print_record(record: Record) {
-    println!("--- Kademlia Record ---");
-    println!("Key: {:?}", record.key);
-    if let Ok(value) = String::from_utf8(record.value.clone()) {
-        println!("Value (as string): {}", value);
-    } else {
-        println!("Value (as bytes): {:?}", record.value);
-    }
-    println!("Publisher: {:?}", record.publisher);
-    println!("--- End Record ---");
-}
-
-fn get_commit_id_of_tag(repo_path: &str, tag_name: &str) -> Result<String, git2::Error> {
-    let repo = Repository::discover(repo_path)?;
+fn get_commit_id_of_tag(repo: &Repository, tag_name: &str) -> Result<String, git2::Error> {
     let reference_name = format!("refs/tags/{}", tag_name);
     let reference = repo.find_reference(&reference_name)?;
     let object = reference.peel(ObjectType::Commit)?;
-    let commit_id = object.id();
-    Ok(commit_id.to_string())
+    Ok(object.id().to_string())
 }
 
 fn generate_ed25519(secret_key_seed: u8) -> identity::Keypair {
     let mut bytes = [0u8; 32];
-    bytes[0] = secret_key_seed;
-    identity::Keypair::ed25519_from_bytes(bytes).expect("only errors on wrong length")
+
+    for (i, byte) in bytes.iter().enumerate() {
+        // Print context: the index and value (decimal and hex) of the current byte.
+        print!("Byte {:02} [{:3} / {:#04x}]: ", i, byte, byte);
+
+        // A `u8` has 8 bits. We iterate from 7 down to 0 to print
+        // the most significant bit (MSB) first.
+        for j in (0..8).rev() {
+            // Create a "mask" by shifting the number 1 to the left `j` times.
+            // For j=7, mask is 10000000
+            // For j=0, mask is 00000001
+            let mask = 1 << j;
+
+            // Use the bitwise AND operator `&` to check if the bit at the mask's
+            // position is set. If the result is not 0, the bit is 1.
+            if byte & mask == 0 {
+                print!("0");
+            } else {
+                print!("1");
+            }
+        }
+        // Add a newline to separate the output for each byte.
+        println!();
+    }
+
+    bytes[31] = secret_key_seed;
+
+    for (i, byte) in bytes.iter().enumerate() {
+        // Print context: the index and value (decimal and hex) of the current byte.
+        print!("Byte {:02} [{:3} / {:#04x}]: ", i, byte, byte);
+
+        // A `u8` has 8 bits. We iterate from 7 down to 0 to print
+        // the most significant bit (MSB) first.
+        for j in (0..8).rev() {
+            // Create a "mask" by shifting the number 1 to the left `j` times.
+            // For j=7, mask is 10000000
+            // For j=0, mask is 00000001
+            let mask = 1 << j;
+
+            // Use the bitwise AND operator `&` to check if the bit at the mask's
+            // position is set. If the result is not 0, the bit is 1.
+            if byte & mask == 0 {
+                print!("0");
+            } else {
+                print!("1");
+            }
+        }
+        // Add a newline to separate the output for each byte.
+        println!();
+    }
+
+    let keypair =
+        identity::Keypair::ed25519_from_bytes(bytes).expect("only errors on wrong length");
+    //println!("141:{}", keypair.public().to_peer_id());
+    generate_close_peer_id(bytes.clone(), 1usize);
+    keypair
+}
+
+fn generate_close_peer_id(mut bytes: [u8; 32], common_bits: usize) -> PeerId {
+    let mut close_bytes = [0u8; 32];
+    close_bytes = bytes;
+
+    for (i, byte) in close_bytes.iter().enumerate() {
+        // Print context: the index and value (decimal and hex) of the current byte.
+        print!("Byte {:02} [{:3} / {:#04x}]: ", i, byte, byte);
+
+        // A `u8` has 8 bits. We iterate from 7 down to 0 to print
+        // the most significant bit (MSB) first.
+        for j in (0..8).rev() {
+            // Create a "mask" by shifting the number 1 to the left `j` times.
+            // For j=7, mask is 10000000
+            // For j=0, mask is 00000001
+            let mask = 1 << j;
+
+            // Use the bitwise AND operator `&` to check if the bit at the mask's
+            // position is set. If the result is not 0, the bit is 1.
+            if byte & mask == 0 {
+                print!("0");
+            } else {
+                print!("1");
+            }
+        }
+        // Add a newline to separate the output for each byte.
+        println!();
+    }
+
+    close_bytes[31] = bytes[31] ^ 255u8;
+
+    for (i, byte) in close_bytes.iter().enumerate() {
+        // Print context: the index and value (decimal and hex) of the current byte.
+        print!("Byte {:02} [{:3} / {:#04x}]: ", i, byte, byte);
+
+        // A `u8` has 8 bits. We iterate from 7 down to 0 to print
+        // the most significant bit (MSB) first.
+        for j in (0..8).rev() {
+            // Create a "mask" by shifting the number 1 to the left `j` times.
+            // For j=7, mask is 10000000
+            // For j=0, mask is 00000001
+            let mask = 1 << j;
+
+            // Use the bitwise AND operator `&` to check if the bit at the mask's
+            // position is set. If the result is not 0, the bit is 1.
+            if byte & mask == 0 {
+                print!("0");
+            } else {
+                print!("1");
+            }
+        }
+        // Add a newline to separate the output for each byte.
+        println!();
+    }
+
+    let keypair =
+        identity::Keypair::ed25519_from_bytes(close_bytes).expect("only errors on wrong length");
+    println!("103:{}", keypair.public().to_peer_id());
+    keypair.public().to_peer_id()
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn StdError>> {
-    let _ = init_subscriber(Level::WARN);
-
-    //let blockheight = get_blockheight().await.unwrap();
-    //tracing::info!("blockheight = {blockheight:?}");
-
-    //TODO create key from arg
+async fn main() -> Result<(), Box<dyn Error>> {
+    init_subscriber();
     let args = Args::parse();
+    warn!("args={:?}", args);
 
-    tracing::debug!("args={:?}", args);
-    // Create a static known PeerId based on given secret
-    let local_key: identity::Keypair = generate_ed25519(args.secret.unwrap_or(0));
+    if let Some(ref peer) = args.peer {}
+    if let Some(ref multiaddr) = args.multiaddr {}
 
-    tracing::debug!("local_key={:?}", local_key.public());
+    if let Some(true) = Some(args.peer.is_some()) {}
+    if let Some(true) = Some(args.multiaddr.is_some()) {}
 
-    // let keypair = if let Some(secret_key_hex) = args.secret.expect("REASON").bytes().clone() {
-    // libp2p::identity::Keypair::ed25519_from_bytes(secret_key_hex.clone().unwrap().into_bytes())
-    //    } else {
-    //        libp2p::identity::Keypair::ed25519_from_bytes([0; 32])
-    //    };
-    //
-    //let public_key = keypair.expect("REASON").public();
-    //    println!("{:?}", public_key);
-    //
-    //for arg in args.into() {
-    //}
-    // Results in PeerID 12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN which is
-    // used as the rendezvous point by the other peer examples.
-    // TODO --key arg
-    let keypair = libp2p::identity::Keypair::ed25519_from_bytes([0; 32]).unwrap();
+    //let keypair = generate_ed25519(args.secret.unwrap_or(0));
+    let keypair = generate_ed25519(0);
+    let peer_id = PeerId::from(keypair.public());
+    warn!("Local PeerId: {}", peer_id);
+    let keypair: identity::Keypair = generate_ed25519(args.secret.clone().unwrap_or(0));
+    let keypair_clone: identity::Keypair = generate_ed25519(args.secret.unwrap_or(0));
     let public_key = keypair.public();
     let peer_id = PeerId::from_public_key(&public_key);
     let kad_store_config = MemoryStoreConfig {
@@ -194,51 +229,8 @@ async fn main() -> Result<(), Box<dyn StdError>> {
         max_records: usize::MAX,
         max_value_bytes: usize::MAX,
     };
-    let kad_memstore = MemoryStore::with_config(peer_id, kad_store_config);
+    let kad_memstore = MemoryStore::with_config(peer_id.clone(), kad_store_config.clone());
     let mut kad_config = KadConfig::default();
-
-    kad_config.set_query_timeout(Duration::from_secs(30));
-    kad_config.set_replication_factor(std::num::NonZeroUsize::new(10).unwrap());
-    kad_config.set_publication_interval(Some(Duration::from_secs(3600))); // 1 hour
-    kad_config.disjoint_query_paths(true); //TODO read https://telematics.tm.kit.edu/publications/Files/267/SKademlia_2007.pdf
-
-    #[derive(NetworkBehaviour)]
-    struct Behaviour {
-        ipfs: kad::Behaviour<MemoryStore>,
-        kademlia: kad::Behaviour<MemoryStore>,
-        mdns: mdns::tokio::Behaviour,
-        identify: identify::Behaviour,
-        rendezvous: rendezvous::server::Behaviour,
-        ping: ping::Behaviour,
-        gossipsub: gossipsub::Behaviour,
-    }
-
-    let message_id_fn = |message: &gossipsub::Message| {
-        let mut s = DefaultHasher::new();
-        message.data.hash(&mut s);
-        debug!("message:\n{0:?}", message);
-        debug!("message.data:\n{0:?}", message.data);
-        debug!("message.source:\n{0:?}", message.source);
-        debug!("message.source:\n{0:1?}", message.source);
-        debug!("message.source.peer_id:\n{0:2?}", message.source.unwrap());
-        //TODO https://docs.rs/gossipsub/latest/gossipsub/trait.DataTransform.html
-        //send Recieved message back
-        debug!(
-            "message.source.peer_id:\n{0:3}",
-            message.source.unwrap().to_string()
-        );
-        debug!("message.sequence_number:\n{0:?}", message.sequence_number);
-        debug!("message.topic:\n{0:?}", message.topic);
-        debug!("message.topic.hash:\n{0:0}", message.topic.clone());
-        //println!("{:?}", s);
-        gossipsub::MessageId::from(s.finish().to_string())
-    };
-    let gossipsub_config = gossipsub::ConfigBuilder::default()
-        .heartbeat_interval(Duration::from_secs(1))
-        .validation_mode(gossipsub::ValidationMode::Permissive)
-        .message_id_fn(message_id_fn)
-        .build()
-        .map_err(|msg| io::Error::new(io::ErrorKind::Other, msg))?;
     let mut swarm = libp2p::SwarmBuilder::with_existing_identity(keypair)
         .with_tokio()
         .with_tcp(
@@ -246,20 +238,30 @@ async fn main() -> Result<(), Box<dyn StdError>> {
             noise::Config::new,
             yamux::Config::default,
         )?
-        .with_quic()
         .with_dns()?
         .with_behaviour(|key| {
+            let kad_store_config = MemoryStoreConfig {
+                max_provided_keys: usize::MAX,
+                max_providers_per_key: usize::MAX,
+                max_records: usize::MAX,
+                max_value_bytes: usize::MAX,
+            };
+            let mut kad_config = kad::Config::default();
+            kad_config.set_query_timeout(Duration::from_secs(120));
+            kad_config.set_replication_factor(std::num::NonZeroUsize::new(20).unwrap());
+            kad_config.set_publication_interval(Some(Duration::from_secs(10)));
+            kad_config.disjoint_query_paths(false);
+            let kad_store = MemoryStore::with_config(peer_id.clone(), kad_store_config);
             let mut ipfs_cfg = kad::Config::new(IPFS_PROTO_NAME);
             ipfs_cfg.set_query_timeout(Duration::from_secs(5 * 60));
             let ipfs_store = kad::store::MemoryStore::new(key.public().to_peer_id());
             Ok(Behaviour {
-                gossipsub: gossipsub::Behaviour::new(
-                    gossipsub::MessageAuthenticity::Signed(key.clone()),
-                    gossipsub_config,
-                )
-                .expect(""),
-
                 ipfs: kad::Behaviour::with_config(key.public().to_peer_id(), ipfs_store, ipfs_cfg),
+                kademlia: kad::Behaviour::with_config(
+                    key.public().to_peer_id(),
+                    kad_store,
+                    kad_config,
+                ),
                 identify: identify::Behaviour::new(identify::Config::new(
                     "/yamux/1.0.0".to_string(),
                     key.public(),
@@ -268,12 +270,7 @@ async fn main() -> Result<(), Box<dyn StdError>> {
                     rendezvous::server::Config::default(),
                 ),
                 ping: ping::Behaviour::new(
-                    ping::Config::new().with_interval(Duration::from_secs(1)),
-                ),
-                kademlia: kad::Behaviour::with_config(
-                    key.public().to_peer_id(),
-                    kad_memstore, //MemoryStore::new(key.public().to_peer_id()),
-                    kad_config,
+                    ping::Config::new().with_interval(Duration::from_secs(60)),
                 ),
                 mdns: mdns::tokio::Behaviour::new(
                     mdns::Config::default(),
@@ -294,241 +291,151 @@ async fn main() -> Result<(), Box<dyn StdError>> {
             .add_address(&peer.parse()?, "/dnsaddr/bootstrap.libp2p.io".parse()?);
     }
 
-    let listen_on = swarm.listen_on("/ip4/0.0.0.0/tcp/62649".parse().unwrap());
-    tracing::debug!("listen_on={}", listen_on.unwrap());
-    swarm.behaviour_mut().kademlia.set_mode(Some(Mode::Server));
-    tracing::info!("swarm.local_peer_id()={:?}", swarm.local_peer_id());
-    //let result = run(&args, &mut swarm.behaviour_mut().kademlia).await;
-    //tracing::trace!("result={:?}", result);
+    let bootstrap_node: Multiaddr = "/dnsaddr/bootstrap.libp2p.io"
+        .parse()
+        .expect("Hardcoded bootstrap address should be valid");
+    for peer in &IPFS_BOOTNODES {
+        let peer_id: PeerId = peer.parse()?;
+        let addr: Multiaddr = "/dnsaddr/bootstrap.libp2p.io".parse()?;
+        swarm
+            .behaviour_mut()
+            .ipfs
+            .add_address(&peer_id, addr.clone());
+        swarm.behaviour_mut().kademlia.add_address(&peer_id, addr);
+    }
+
+    swarm
+        .behaviour_mut()
+        .kademlia
+        .set_mode(Some(kad::Mode::Server));
+
+    swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
+    info!("Starting initial git repository scan and data publishing...");
+    if let Err(e) = run(&args, &mut swarm).await {
+        warn!("Error during initial git processing: {}", e);
+    }
+    debug!("Initial data publishing complete.");
+
+    // --- Main Event Loop ---
     let mut stdin = io::BufReader::new(io::stdin()).lines();
-    let listen_on = swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
-    tracing::debug!("listen_on={}", listen_on);
-
-    let mut ran: bool = false;
     loop {
-        //let result = run(&args, &mut swarm.behaviour_mut().kademlia, peer_id).await;
-        //tracing::trace!("result={:?}", result);
         select! {
-               Ok(Some(line)) = stdin.next_line() => {
-                   tracing::trace!("line.len()={}", line.len());
-                   if line.len() <= 3 {
-                   tracing::debug!("{:?}", swarm.local_peer_id());
-                   for address in swarm.external_addresses() {
-                       tracing::trace!("{:?}", address);
-                   }
-                   for peer in swarm.connected_peers() {
-                       tracing::trace!("{:?}", peer);
-                   }
-                   }
-                   handle_input_line(&mut swarm.behaviour_mut().kademlia, line).await;
-               }
-
-               event = swarm.select_next_some() => match event {
-
-
-               //match event
-
-                   SwarmEvent::ConnectionEstablished { peer_id, .. } => {
-                       tracing::trace!("Connected to {}", peer_id);
-                   }
-                   SwarmEvent::ConnectionClosed { peer_id, .. } => {
-                       tracing::trace!("Disconnected from {}", peer_id);
-                   }
-                   SwarmEvent::Behaviour(BehaviourEvent::Rendezvous(
-                       rendezvous::server::Event::PeerRegistered { peer, registration },
-                   )) => {
-                       tracing::info!(
-                           "Peer {} registered for namespace '{}'",
-                           peer,
-                           registration.namespace
-                       );
-                   }
-                   SwarmEvent::Behaviour(BehaviourEvent::Rendezvous(
-                       rendezvous::server::Event::DiscoverServed {
-                           enquirer,
-                           registrations,
-                       },
-                   )) => {
-                       tracing::info!(
-                           "Served peer {} with {} registrations",
-                           enquirer,
-                           registrations.len()
-                       );
-                   }
-                   //other => {
-                   //    tracing::debug!("Unhandled {:?}", other);
-                   //}
-
-               SwarmEvent::NewListenAddr { address, .. } => {
-                   tracing::info!("Listening in {address:?}");
-               }
-
-               SwarmEvent::Behaviour(BehaviourEvent::Mdns(mdns::Event::Discovered(list))) => {
-                   for (peer_id, multiaddr) in list {
-                       swarm.behaviour_mut().kademlia.add_address(&peer_id, multiaddr.clone());
-                       tracing::info!("{}", peer_id.clone());
-                       tracing::info!("{}", multiaddr.clone());
-                       println!("{}", peer_id.clone());
-                       println!("{}", multiaddr.clone());
-                   }
-               }
-
-               SwarmEvent::Behaviour(BehaviourEvent::Kademlia(kad::Event::OutboundQueryProgressed { result, ..})) => {
-               match result {
-                   kad::QueryResult::GetProviders(Ok(kad::GetProvidersOk::FoundProviders { key, providers, .. })) => {
-                       for peer in providers {
-                           //tracing::info!(
-                           println!(
-                               "Peer {peer:?} provides key {:?}",
-                               std::str::from_utf8(key.as_ref()).unwrap()
-                           );
-                       }
-                   }
-                   kad::QueryResult::GetProviders(Err(err)) => {
-                       //eprintln!("Failed to get providers: {err:?}");
-                       //tracing::info!("Failed to get providers: {err:?}");
-                       println!("Failed to get providers: {err:?}");
-                   }
-                   kad::QueryResult::GetRecord(
-                       Ok(
-                       kad::GetRecordOk::FoundRecord(
-                           kad::PeerRecord {
-                           record: kad::Record { key, value, .. },
-                           ..
-                       }
-                       )
-                       )
-                       ) => {
-                       //tracing::info!("{}",record);
-
-                       println!(
-                           "{{\"commit\":{:?},\"message\":{:?}}}",
-                           std::str::from_utf8(key.as_ref()).unwrap(),
-                           std::str::from_utf8(&value).unwrap(),
-                       );
-
-
-                   }
-                   //kad::QueryResult::GetRecord(Ok(_)) => {}
-                   kad::QueryResult::GetRecord(Err(err)) => {
-                       //eprintln!("Failed to get record: {err:?}");
-                       tracing::info!("Failed to get record: {err:?}");
-                   }
-                   kad::QueryResult::PutRecord(Ok(kad::PutRecordOk { key })) => {
-                       tracing::info!(
-                           "PUT {:?}",
-                           std::str::from_utf8(key.as_ref()).unwrap()
-                       );
-                   }
-                   kad::QueryResult::PutRecord(Err(err)) => {
-                       //eprintln!("Failed to put record: {err:?}");
-                       tracing::debug!("Failed to put record: {err:?}");
-                   }
-                   kad::QueryResult::StartProviding(Ok(kad::AddProviderOk { key })) => {
-                       tracing::debug!(
-                           "PUT_PROVIDER {:?}",
-                           std::str::from_utf8(key.as_ref()).unwrap()
-                       );
-                   }
-                   kad::QueryResult::StartProviding(Err(err)) => {
-                       //eprintln!("Failed to put provider record: {err:?}");
-                       tracing::trace!("Failed to put provider record: {err:?}");
-                   }
-                   _ => {}
-               }
-           }
-           other => {
-               tracing::debug!("Unhandled {:?}", other);
-           }
-               }
+            line = stdin.next_line() => {
+                let line = line?.ok_or("stdin closed")?;
+                handle_input_line(&mut swarm.behaviour_mut().kademlia, line).await;
+            }
+            event = swarm.select_next_some() => {
+                handle_swarm_event(&mut swarm, event).await;
+            }
         }
-
-        if !ran {
-            let result = run(&args, &mut swarm.behaviour_mut().kademlia, peer_id).await;
-            tracing::trace!("result={:?}", result);
-            ran = true;
-        }
-    } //end loop
+    }
 }
 
-//fn commit_list(kademlia: &mut kad::Behaviour<MemoryStore>) {
-//    let key = {
-//            let Some(key) => kad::RecordKey::new(&key)
-//    };
-//
-//    kademlia
-//        .start_providing(key)
-//        .expect("Failed to start providing key");
-//}
-async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: String) {
-    let mut args = line.split(' ');
+async fn handle_swarm_event(swarm: &mut Swarm<Behaviour>, event: SwarmEvent<BehaviourEvent>) {
+    match event {
+        SwarmEvent::NewListenAddr { address, .. } => {
+            warn!("Listening on {address}");
+        }
+        SwarmEvent::Behaviour(BehaviourEvent::Mdns(mdns::Event::Discovered(list))) => {
+            for (peer_id, multiaddr) in list {
+                info!("mDNS discovered a new peer: {peer_id}\n{multiaddr}");
+                swarm
+                    .behaviour_mut()
+                    .kademlia
+                    .add_address(&peer_id, multiaddr);
+            }
+        }
+        SwarmEvent::Behaviour(BehaviourEvent::Kademlia(kad::Event::OutboundQueryProgressed {
+            result,
+            ..
+        })) => match result {
+            kad::QueryResult::GetRecord(Ok(kad::GetRecordOk::FoundRecord(kad::PeerRecord {
+                record,
+                ..
+            }))) => {
+                println!(
+                    "{{\"key\":{:?},\"value\":{:?}}}",
+                    std::str::from_utf8(record.key.as_ref()).unwrap_or("invalid utf8"),
+                    std::str::from_utf8(&record.value).unwrap_or("invalid utf8"),
+                );
+            }
+            kad::QueryResult::GetRecord(Err(err)) => {
+                warn!("Failed to get record: {err:?}");
+            }
+            kad::QueryResult::PutRecord(Ok(kad::PutRecordOk { key })) => {
+                debug!(
+                    "Successfully PUT record for key: {:?}",
+                    std::str::from_utf8(key.as_ref())
+                );
+            }
+            kad::QueryResult::PutRecord(Err(err)) => {
+                trace!("Failed to PUT record: {err:?}");
+            }
+            kad::QueryResult::StartProviding(Ok(kad::AddProviderOk { key, .. })) => {
+                debug!(
+                    "Successfully started PROVIDING key: {:?}",
+                    std::str::from_utf8(key.as_ref())
+                );
+            }
+            kad::QueryResult::StartProviding(Err(err)) => {
+                warn!("Failed to start PROVIDING: {err:?}");
+            }
+            _ => {}
+        },
+        _ => {}
+    }
+}
 
+async fn handle_input_line(kademlia: &mut kad::Behaviour<kad::store::MemoryStore>, line: String) {
+    let mut args = line.split_whitespace();
     match args.next() {
         Some("GET") => {
-            let key = {
-                match args.next() {
-                    Some(key) => kad::RecordKey::new(&key),
-                    None => {
-                        eprintln!("gnostr> GET <commit_hash>");
-                        eprint!("gnostr> ");
-                        return;
-                    }
-                }
-            };
-            let query_id = kademlia.get_record(key.clone());
-            //print_record(record);
-            tracing::info!(
-                "kademlia.get_record({})\n{}",
-                kademlia.get_record(key),
-                query_id
-            );
+            if let Some(key_str) = args.next() {
+                let key = kad::RecordKey::new(&key_str);
+                kademlia.get_record(key);
+            } else {
+                eprintln!("Usage: GET <key>");
+            }
         }
         Some("GET_PROVIDERS") => {
-            let key = {
-                match args.next() {
-                    Some(key) => kad::RecordKey::new(&key),
-                    None => {
-                        eprint!("gnostr> GET_PROVIDERS <commit_hash>");
-                        eprint!("gnostr> ");
-                        return;
-                    }
-                }
-            };
-            kademlia.get_providers(key);
+            if let Some(key_str) = args.next() {
+                let key = kad::RecordKey::new(&key_str);
+                kademlia.get_providers(key);
+            } else {
+                eprintln!("Usage: GET_PROVIDERS <key>");
+            }
         }
         Some("PUT") => {
-            let key = {
-                match args.next() {
-                    Some(key) => kad::RecordKey::new(&key),
-                    None => {
-                        eprintln!("gnostr> PUT <key> <value>");
-                        eprint!("gnostr> ");
-                        return;
-                    }
+            if let (Some(key_str), Some(value_str)) = (args.next(), args.next()) {
+                let key = kad::RecordKey::new(&key_str);
+                let value = value_str.as_bytes().to_vec();
+                let record = kad::Record {
+                    key: key.clone(),
+                    value,
+                    publisher: None,
+                    expires: None,
+                };
+                if let Err(e) = kademlia.put_record(record.clone(), kad::Quorum::Majority) {
+                    debug!("Failed to store record locally: {:?}", e);
+                } else {
+                    info!(
+                        "put record.key:{:?} record.value:{:?}",
+                        record.key, record.value
+                    );
                 }
-            };
-            let value = {
-                match args.next() {
-                    Some(value) => value.as_bytes().to_vec(),
-                    None => {
-                        eprintln!("gnostr> PUT {:?} <value>", key);
-                        eprint!("gnostr> ");
-                        return;
-                    }
+                if let Err(e) = kademlia.start_providing(key.clone()) {
+                    debug!("Failed to store record locally: {:?}", e);
+                } else {
+                    info!(
+                        "started providing put record.key:{:?} record.value:{:?} key:{:?}",
+                        record.key,
+                        record.value,
+                        key.clone()
+                    );
                 }
-            };
-            let record = kad::Record {
-                key: key.clone(),
-                value,
-                publisher: None,
-                expires: None,
-            };
-            kademlia
-                .put_record(record, kad::Quorum::One)
-                .expect("Failed to store record locally.");
-            kademlia
-                .start_providing(key)
-                .expect("Failed to start providing key");
+            } else {
+                eprintln!("Usage: PUT <key> <value>");
+            }
         }
         Some("PUT_PROVIDER") => {
             let key = {
@@ -540,522 +447,148 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<MemoryStore>, line: Str
                     }
                 }
             };
-            kademlia
-                .start_providing(key)
-                .expect("Failed to start providing key");
+            if let Err(e) = kademlia.start_providing(key) {
+                eprintln!("Failed to store record locally: {:?}", e);
+            }
         }
-        Some("QUIT") => {
-            std::process::exit(0);
-        }
-        Some("Q") => {
-            std::process::exit(0);
-        }
-        Some("EXIT") => {
+
+        Some("QUIT") | Some("Q") | Some("EXIT") => {
             std::process::exit(0);
         }
         _ => {
-            tracing::info!("\nGET, GET_PROVIDERS, PUT, PUT_PROVIDER <commit_hash>");
-            eprint!("gnostr> ");
+            eprintln!("Commands: GET, GET_PROVIDERS, PUT, QUIT");
         }
     }
 }
 
-fn sig_matches(sig: &Signature, arg: &Option<String>) -> bool {
-    match *arg {
-        Some(ref s) => {
-            sig.name().map(|n| n.contains(s)).unwrap_or(false)
-                || sig.email().map(|n| n.contains(s)).unwrap_or(false)
-        }
-        None => true,
-    }
-}
-
-fn log_message_matches(msg: Option<&str>, grep: &Option<String>) -> bool {
-    match (grep, msg) {
-        (&None, _) => true,
-        (&Some(_), None) => false,
-        (&Some(ref s), Some(msg)) => msg.contains(s),
-    }
-}
-
-//this formats and prints the commit header/message
-fn print_commit_header(commit: &Commit) {
-    //println!("commit {}", commit.id());
-
-    if commit.parents().len() > 1 {
-        print!("Merge:");
-        for id in commit.parent_ids() {
-            print!(" {:.8}", id);
-        }
-        println!();
-    }
-
-    let author = commit.author();
-    println!("Author: {}", author);
-    print_time(&author.when(), "Date:   ");
-    println!();
-
-    for line in String::from_utf8_lossy(commit.message_bytes()).lines() {
-        println!("    {}", line);
-    }
-    println!();
-}
-
-//called from above
-//part of formatting the output
-fn print_time(time: &Time, prefix: &str) {
-    let (offset, sign) = match time.offset_minutes() {
-        n if n < 0 => (-n, '-'),
-        n => (n, '+'),
-    };
-    let (hours, minutes) = (offset / 60, offset % 60);
-    let ts = time::Timespec::new(time.seconds() + (time.offset_minutes() as i64) * 60, 0);
-    let time = time::at(ts);
-
-    println!(
-        "{}{} {}{:02}{:02}",
-        prefix,
-        time.strftime("%a %b %e %T %Y").unwrap(),
-        sign,
-        hours,
-        minutes
-    );
-}
-
-fn match_with_parent(
-    repo: &Repository,
-    commit: &Commit,
-    parent: &Commit,
-    opts: &mut DiffOptions,
-) -> Result<bool, GitError> {
-    let a = parent.tree()?;
-    let b = commit.tree()?;
-    let diff = repo.diff_tree_to_tree(Some(&a), Some(&b), Some(opts))?;
-    Ok(diff.deltas().len() > 0)
-}
-
-async fn run(
-    args: &Args,
-    kademlia: &mut kad::Behaviour<MemoryStore>,
-    peer_id: PeerId,
-) -> Result<(), GitError> {
-    let path = args.flag_git_dir.as_ref().map(|s| &s[..]).unwrap_or(".");
+async fn run(args: &Args, swarm: &mut Swarm<Behaviour>) -> Result<(), Box<dyn Error>> {
+    let path = args.flag_git_dir.as_ref().map_or(".", |s| &s[..]);
     let repo = Repository::discover(path)?;
-
-    let tag_names = &repo.tag_names(Some("")).expect("REASON");
-    //for tag in tag_names {
-    //    //println!("println!={}", tag.unwrap());
-    //    tracing::trace!("tag.unwrap()={}", tag.unwrap());
-    //}
-
+    if let Ok(tag_names) = repo.tag_names(None) {
+        for tag_name_opt in tag_names.iter() {
+            if let Some(tag_name) = tag_name_opt {
+                if let Ok(commit_id) = get_commit_id_of_tag(&repo, tag_name) {
+                    let key = kad::RecordKey::new(&tag_name);
+                    let record = kad::Record {
+                        key: key.clone(),
+                        value: commit_id.into_bytes(),
+                        publisher: Some(swarm.local_peer_id().clone()),
+                        expires: None,
+                    };
+                    swarm
+                        .behaviour_mut()
+                        .kademlia
+                        .put_record(record, kad::Quorum::Majority)?;
+                    swarm.behaviour_mut().kademlia.start_providing(key)?;
+                }
+            }
+        }
+    }
     let mut revwalk = repo.revwalk()?;
-
-    // Prepare the revwalk based on CLI parameters
     let base = if args.flag_reverse {
         git2::Sort::REVERSE
     } else {
         git2::Sort::NONE
     };
-    revwalk.set_sorting(
-        base | if args.flag_topo_order {
+    let sorting = base
+        | if args.flag_topo_order {
             git2::Sort::TOPOLOGICAL
         } else if args.flag_date_order {
             git2::Sort::TIME
         } else {
             git2::Sort::NONE
-        },
-    )?;
-    for commit in &args.arg_commit {
-        if commit.starts_with('^') {
-            let obj = repo.revparse_single(&commit[1..])?;
-            revwalk.hide(obj.id())?;
-            continue;
-        }
-        let revspec = repo.revparse(commit)?;
-        if revspec.mode().contains(git2::RevparseMode::SINGLE) {
-            revwalk.push(revspec.from().unwrap().id())?;
-        } else {
-            let from = revspec.from().unwrap().id();
-            let to = revspec.to().unwrap().id();
-            revwalk.push(to)?;
-            if revspec.mode().contains(git2::RevparseMode::MERGE_BASE) {
-                let base = repo.merge_base(from, to)?;
-                let o = repo.find_object(base, Some(ObjectType::Commit))?;
-                revwalk.push(o.id())?;
-            }
-            revwalk.hide(from)?;
-        }
-    }
+        };
+    revwalk.set_sorting(sorting)?;
+
     if args.arg_commit.is_empty() {
         revwalk.push_head()?;
+    } else {
+        for commit_spec in &args.arg_commit {
+            let obj = repo.revparse_single(commit_spec)?;
+            revwalk.push(obj.id())?;
+        }
     }
 
-    // Prepare our diff options and pathspec matcher
-    let (mut diffopts, mut diffopts2) = (DiffOptions::new(), DiffOptions::new());
-    for spec in &args.arg_spec {
-        diffopts.pathspec(spec);
-        diffopts2.pathspec(spec);
-    }
-    let ps = Pathspec::new(args.arg_spec.iter())?;
+    let revwalk_iterator = revwalk
+        .filter_map(Result::ok)
+        .filter_map(|id| repo.find_commit(id).ok());
 
-    //TODO better p2p put options
-    // Filter our revwalk based on the CLI parameters
-    macro_rules! filter_try {
-        ($e:expr) => {
-            match $e {
-                Ok(t) => t,
-                Err(e) => return Some(Err(e)),
-            }
-        };
-    }
-    let revwalk = revwalk
-        .filter_map(|id| {
-            let id = filter_try!(id);
-            let commit = filter_try!(repo.find_commit(id));
-            let parents = commit.parents().len();
-            if parents < args.min_parents() {
-                return None;
-            }
-            if let Some(n) = args.max_parents() {
-                if parents >= n {
-                    return None;
-                }
-            }
-            if !args.arg_spec.is_empty() {
-                match commit.parents().len() {
-                    0 => {
-                        let tree = filter_try!(commit.tree());
-                        let flags = git2::PathspecFlags::NO_MATCH_ERROR;
-                        if ps.match_tree(&tree, flags).is_err() {
-                            return None;
-                        }
-                    }
-                    _ => {
-                        let m = commit.parents().all(|parent| {
-                            match_with_parent(&repo, &commit, &parent, &mut diffopts)
-                                .unwrap_or(false)
-                        });
-                        if !m {
-                            return None;
-                        }
-                    }
-                }
-            }
-            if !sig_matches(&commit.author(), &args.flag_author) {
-                return None;
-            }
-            if !sig_matches(&commit.committer(), &args.flag_committer) {
-                return None;
-            }
-            if !log_message_matches(commit.message(), &args.flag_grep) {
-                return None;
-            }
-            Some(Ok(commit))
-        })
-        .skip(args.flag_skip.unwrap_or(0))
-        .take(args.flag_max_count.unwrap_or(!0)); //end let revwalk
-
-    let tag_names = &repo.tag_names(Some("")).expect("REASON");
-    tracing::debug!("tag_names.len()={}", tag_names.len());
-    for tag in tag_names {
-        tracing::debug!("{}", tag.unwrap());
-        let tag_key = kad::RecordKey::new(&format!("{}", &tag.clone().unwrap()));
-
-        let tag_value = get_commit_id_of_tag(&".", &tag.unwrap());
-
-        let tag_value_owned_string: String = tag_value?.clone().to_owned();
-        let tag_value_slice: &[u8] = tag_value_owned_string.as_bytes();
-        let record = kad::Record {
-            key: tag_key.clone(),
-            value: tag_value_slice.clone().to_vec(),
-            publisher: Some(peer_id),
+    for commit in revwalk_iterator.take(args.flag_max_count.unwrap_or(usize::MAX)) {
+        let commit_id_str = commit.id().to_string();
+        let msg_key = kad::RecordKey::new(&commit_id_str);
+        let msg_record = kad::Record {
+            key: msg_key.clone(),
+            value: commit.message_bytes().to_vec(),
+            publisher: Some(*swarm.local_peer_id()),
             expires: None,
         };
-        kademlia
-            .put_record(record, kad::Quorum::One)
-            .expect("Failed to store record locally.");
-        kademlia
-            .start_providing(tag_key)
-            .expect("Failed to start providing key");
-    }
-
-    let mut count = 0;
-    // print!
-    for commit in revwalk {
-        count = count + 1;
-        tracing::debug!("count={}", count);
-        if count <= 10 {
-            let commit = commit?;
-
-            //TODO construct nostr event
-            //commit_privkey
-            let commit_privkey: String = String::from(format!("{:0>64}", &commit.id().clone()));
-            tracing::info!("commit_privkey=\n{}", commit_privkey);
-
-            //commit.id
-            //we want to broadcast as provider for the actual commit.id()
-            tracing::info!("&commit.id=\n{}", &commit.id());
-
-            let key = kad::RecordKey::new(&format!("{}", &commit.id()));
-
-            let commit_id = kad::RecordKey::new(&format!("{}", &commit.id()));
-
-            //push commit key and commit content as value
-            //let value = Vec::from(commit.message_bytes().clone());
-            let commit_message_bytes = Vec::from(commit.message_bytes());
-            tracing::trace!("commit_message_bytes=\n{:?}", commit_message_bytes.clone());
-
-            let record = kad::Record {
-                key: commit_id,
-                value: commit_message_bytes,
-                publisher: Some(peer_id.clone()),
-                expires: None,
-            };
-            kademlia
-                .put_record(record.clone(), kad::Quorum::One)
-                .expect("Failed to store record locally.");
-            tracing::debug!(
-                "record.key={:?}\nrecord.value={:?}",
-                record.key,
-                record.value
-            );
-            let key = kad::RecordKey::new(&format!("{}", &commit.id()));
-            kademlia
-                .start_providing(key)
-                .expect("Failed to start providing key");
-
-            let repo_path = "."; // Path to your Git repository
-            let repo = Repository::discover(repo_path).expect("Failed to open repository");
-
-            //let commit_id = "your_commit_hash_here"; // Replace with a valid commit hash
-            let message_bytes = get_commit_message_bytes(&repo, &commit.id().to_string())
-                .expect("Failed to get commit message bytes");
-
-            match String::from_utf8(message_bytes) {
-                Ok(message) => {
-                    tracing::info!("799:message:\n{}", message);
-                }
-                Err(e) => {
-                    eprintln!("Failed to decode commit message: {}", e);
-                    // You can inspect the bytes that caused the error
-                    eprintln!("Invalid bytes: {:?}", e.as_bytes());
-                }
-            }
-
-            let diff_key = kad::RecordKey::new(&format!("{}/diff", &commit.id()));
-            let diff = get_commit_diff_as_string(&repo, commit.id());
-            //tracing::debug!("861:diff=\n{:?}", diff?.clone()?);
-            let diff_as_bytes = get_commit_diff_as_bytes(&repo, commit.id())?;
-
-            let record = kad::Record {
+        swarm
+            .behaviour_mut()
+            .kademlia
+            .put_record(msg_record, kad::Quorum::Majority)?;
+        swarm.behaviour_mut().kademlia.start_providing(msg_key)?;
+        if let Ok(diff_bytes) = get_commit_diff_as_bytes(&repo, &commit) {
+            let diff_key_str = format!("{}/diff", commit_id_str);
+            let diff_key = kad::RecordKey::new(&diff_key_str);
+            let diff_record = kad::Record {
                 key: diff_key.clone(),
-                value: diff_as_bytes.clone().into(),
-                publisher: None,
+                value: diff_bytes,
+                publisher: Some(*swarm.local_peer_id()),
                 expires: None,
             };
-            kademlia
-                .put_record(record, kad::Quorum::One)
-                .expect("Failed to store record locally.");
-            //        let key = kad::RecordKey::new(&format!("{}", &commit.id()));
-            kademlia
-                .start_providing(diff_key)
-                .expect("Failed to start providing key");
-
-            ////println!("commit.tree_id={}", &commit.tree_id());
-            //let commit_tree_key = kad::RecordKey::new(&format!("{}/tree", &commit.id()));
-            //tracing::info!("commit.tree={:?}", &commit.tree());
-            //let value = Vec::from(format!("{:?}", commit.tree()));
-            //let record = kad::Record {
-            //    key: commit_tree_key.clone(),
-            //    value,
-            //    publisher: Some(peer_id.clone()),
-            //    expires: None,
-            //};
-            //kademlia
-            //    .put_record(record, kad::Quorum::One)
-            //    .expect("Failed to store record locally.");
-            //kademlia
-            //    .start_providing(commit_tree_key)
-            //    .expect("Failed to start providing key");
-
-            //println!("commit.tree={:?}", &commit.tree());
-            //println!("commit.raw={:?}", &commit.raw()); //pointer?
-
-            //println!("commit.message={:?}", &commit.message()); //commit diff body
-            let mut part_index = 0;
-            let commit_parts = commit.message().clone().unwrap().split("\n");
-            //let parts = commit.message().clone().unwrap().split("gpgsig");
-            for part in commit_parts {
-                tracing::info!(
-                    "commit.message part={}:{}",
-                    part_index,
-                    part.replace("", "")
-                );
-
-                let commit_id = kad::RecordKey::new(&format!("{}/{}", &commit.id(), part_index));
-                tracing::info!("910:commit_id=\n{:?}", commit_id.clone());
-
-                //push commit key and commit content as value
-                //let value = Vec::from(commit.message_bytes().clone());
-                let commit_message_bytes = Vec::from(part);
-                tracing::debug!(
-                    "865:commit_message_bytes=\n{:?}",
-                    commit_message_bytes.clone()
-                );
-
-                //let test_record = kad::Record {};
-                let record = kad::Record {
-                    key: commit_id.clone(),
-                    value: commit_message_bytes,
-                    publisher: Some(peer_id),
-                    expires: None,
-                };
-                kademlia
-                    .put_record(record, kad::Quorum::One)
-                    .expect("Failed to store record locally.");
-                kademlia
-                    .start_providing(commit_id)
-                    .expect("Failed to start providing key");
-
-                part_index += 1;
-            }
-            part_index = 0;
-
-            ////println!("commit.message_bytes{:?}", &commit.message_bytes());
-            //println!("commit.message_encoding={:?}", &commit.message_encoding());
-            //println!("commit.message_raw={:?}", &commit.message_raw());
-            ////println!("commit.message_raw_bytes={:?}", &commit.message_raw_bytes());
-
-            //raw_header
-            //println!("commit.raw_header={:?}", commit.raw_header());
-            let raw_header_parts = commit.raw_header().clone().unwrap().split("\n");
-            for part in raw_header_parts {
-                tracing::trace!("raw_header part={}:{}", part_index, part.replace("", ""));
-                part_index += 1;
-            }
-            //parts = commit.raw_header().clone().unwrap().split("gpgsig");
-            //for part in parts {
-            //    println!("raw_header gpgsig part={}", part.replace("", ""))
-            //};
-            ////println!("commit.header_field_bytes={:?}", &commit.header_field_bytes());
-            ////println!("commit.raw_header_bytes={:?}", &commit.raw_header_bytes());
-            //println!("commit.summary={:?}", &commit.summary());
-            ////println!("commit.summary_bytes={:?}", &commit.summary_bytes());
-            //println!("commit.body={:?}", &commit.body());
-            ////println!("commit.body_bytes={:?}", &commit.body_bytes());
-            //println!("commit.time={:?}", &commit.time());
-            //println!("commit.author={:?}", &commit.author().name());
-            //print_commit_header(&commit);
-
-            if !args.flag_patch || commit.parents().len() > 1 {
-                continue;
-            }
-
-            let a = if commit.parents().len() == 1 {
-                //we have arrived at the initial commit
-                let parent = commit.parent(0)?;
-                Some(parent.tree()?)
-            } else {
-                None
-            };
-
-            //print the diff content
-            //push diff to commit_key
-            let b = commit.tree()?;
-            let diff = repo.diff_tree_to_tree(a.as_ref(), Some(&b), Some(&mut diffopts2))?;
-            diff.print(DiffFormat::Patch, |_delta, _hunk, line| {
-                match line.origin() {
-                    ' ' | '+' | '-' => print!("{}", line.origin()),
-                    _ => {}
-                }
-                print!(
-                    "769:==================>{}",
-                    str::from_utf8(line.content()).unwrap()
-                );
-                true
-            })?;
-            count = count + 1; //end if count <= 100
-        } else {
-        };
-    } //end loop
+            swarm
+                .behaviour_mut()
+                .kademlia
+                .put_record(diff_record, kad::Quorum::One)?;
+            swarm.behaviour_mut().kademlia.start_providing(diff_key)?;
+        }
+    }
 
     Ok(())
-} //end run
-
-//TODO Server Mode or ??
-#[derive(Debug, Parser)]
-struct Args {
-    #[structopt(name = "secret", long)]
-    /// secret to derive peer_id from
-    secret: Option<u8>,
-    #[structopt(name = "topo-order", long)]
-    /// sort commits in topological order
-    flag_topo_order: bool,
-    #[structopt(name = "date-order", long)]
-    /// sort commits in date order
-    flag_date_order: bool,
-    #[structopt(name = "reverse", long)]
-    /// sort commits in reverse
-    flag_reverse: bool,
-    #[structopt(name = "author", long)]
-    /// author to sort by
-    flag_author: Option<String>,
-    #[structopt(name = "committer", long)]
-    /// committer to sort by
-    flag_committer: Option<String>,
-    #[structopt(name = "pat", long = "grep")]
-    /// pattern to filter commit messages by
-    flag_grep: Option<String>,
-    #[structopt(name = "dir", long = "git-dir")]
-    /// alternative git directory to use
-    flag_git_dir: Option<String>,
-    #[structopt(name = "skip", long)]
-    /// number of commits to skip
-    flag_skip: Option<usize>,
-    #[structopt(name = "max-count", short = 'n', long)]
-    /// maximum number of commits to show
-    flag_max_count: Option<usize>,
-    #[structopt(name = "merges", long)]
-    /// only show merge commits
-    flag_merges: bool,
-    #[structopt(name = "no-merges", long)]
-    /// don't show merge commits
-    flag_no_merges: bool,
-    #[structopt(name = "no-min-parents", long)]
-    /// don't require a minimum number of parents
-    flag_no_min_parents: bool,
-    #[structopt(name = "no-max-parents", long)]
-    /// don't require a maximum number of parents
-    flag_no_max_parents: bool,
-    #[structopt(name = "max-parents")]
-    /// specify a maximum number of parents for a commit
-    flag_max_parents: Option<usize>,
-    #[structopt(name = "min-parents")]
-    /// specify a minimum number of parents for a commit
-    flag_min_parents: Option<usize>,
-    #[structopt(name = "patch", long, short)]
-    /// show commit diff
-    flag_patch: bool,
-    #[structopt(name = "commit")]
-    arg_commit: Vec<String>,
-    #[structopt(name = "spec", last = true)]
-    arg_spec: Vec<String>,
 }
 
-impl Args {
-    fn min_parents(&self) -> usize {
-        if self.flag_no_min_parents {
-            return 0;
-        }
-        self.flag_min_parents
-            .unwrap_or(if self.flag_merges { 2 } else { 0 })
-    }
-
-    fn max_parents(&self) -> Option<usize> {
-        if self.flag_no_max_parents {
-            return None;
-        }
-        self.flag_max_parents
-            .or(if self.flag_no_merges { Some(1) } else { None })
-    }
+// --- CLI Arguments Struct (unchanged from original) ---
+#[derive(Debug, Parser)]
+struct Args {
+    #[clap(long)]
+    secret: Option<u8>,
+    #[clap(long)]
+    peer: Option<String>,
+    #[clap(long)]
+    multiaddr: Option<Multiaddr>,
+    #[clap(long)]
+    flag_topo_order: bool,
+    #[clap(long)]
+    flag_date_order: bool,
+    #[clap(long)]
+    flag_reverse: bool,
+    #[clap(long)]
+    flag_author: Option<String>,
+    #[clap(long)]
+    flag_committer: Option<String>,
+    #[clap(long = "grep")]
+    flag_grep: Option<String>,
+    #[clap(long = "git-dir")]
+    flag_git_dir: Option<String>,
+    #[clap(long)]
+    flag_skip: Option<usize>,
+    #[clap(short = 'n', long)]
+    flag_max_count: Option<usize>,
+    #[clap(long)]
+    flag_merges: bool,
+    #[clap(long)]
+    flag_no_merges: bool,
+    #[clap(long)]
+    flag_no_min_parents: bool,
+    #[clap(long)]
+    flag_no_max_parents: bool,
+    #[clap(long)]
+    flag_max_parents: Option<usize>,
+    #[clap(long)]
+    flag_min_parents: Option<usize>,
+    #[clap(long, short)]
+    flag_patch: bool,
+    arg_commit: Vec<String>,
+    #[clap(last = true)]
+    arg_spec: Vec<String>,
 }
