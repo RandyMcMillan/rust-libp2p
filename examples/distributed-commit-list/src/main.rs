@@ -214,14 +214,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
     if let Some(true) = Some(args.peer.is_some()) {}
     if let Some(true) = Some(args.multiaddr.is_some()) {}
 
-    //let keypair = generate_ed25519(args.secret.unwrap_or(0));
-    let keypair = generate_ed25519(0);
-    let peer_id = PeerId::from(keypair.public());
-    warn!("Local PeerId: {}", peer_id);
     let keypair: identity::Keypair = generate_ed25519(args.secret.clone().unwrap_or(0));
     let keypair_clone: identity::Keypair = generate_ed25519(args.secret.unwrap_or(0));
     let public_key = keypair.public();
     let peer_id = PeerId::from_public_key(&public_key);
+    warn!("Local PeerId: {}", peer_id);
+    //kad_store_config
     let kad_store_config = MemoryStoreConfig {
         max_provided_keys: usize::MAX,
         max_providers_per_key: usize::MAX,
