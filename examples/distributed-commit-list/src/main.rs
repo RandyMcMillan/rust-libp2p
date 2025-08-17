@@ -368,6 +368,8 @@ async fn handle_swarm_event(swarm: &mut Swarm<Behaviour>, event: SwarmEvent<Beha
         SwarmEvent::NewListenAddr { address, .. } => {
             warn!("Listening on {address}");
         }
+
+        //Mdns
         SwarmEvent::Behaviour(BehaviourEvent::Mdns(mdns::Event::Discovered(list))) => {
             for (peer_id, multiaddr) in list {
                 info!("mDNS discovered a new peer: {peer_id}\n{multiaddr}");
@@ -377,6 +379,7 @@ async fn handle_swarm_event(swarm: &mut Swarm<Behaviour>, event: SwarmEvent<Beha
                     .add_address(&peer_id, multiaddr);
             }
         }
+        //Kademlia
         SwarmEvent::Behaviour(BehaviourEvent::Kademlia(kad::Event::OutboundQueryProgressed {
             result,
             ..
@@ -414,6 +417,46 @@ async fn handle_swarm_event(swarm: &mut Swarm<Behaviour>, event: SwarmEvent<Beha
             }
             _ => {}
         },
+        //Gossipsub
+        SwarmEvent::Behaviour(BehaviourEvent::Gossipsub(event)) => {
+            // This is where we handle all events from the Gossipsub behaviour
+            match event {
+                gossipsub::Event::Message {
+                    propagation_source,
+                    message_id,
+                    message,
+                } => {
+                    let topic_str = message.topic.to_string();
+                    let message_text = String::from_utf8_lossy(&message.data);
+                    println!(
+                        "Received message: '{}' on topic '{}' from peer: {:?}",
+                        message_text, topic_str, propagation_source
+                    );
+                }
+                gossipsub::Event::Subscribed { peer_id, topic } => {
+                    println!(
+                        "Peer {:?} subscribed to topic '{}'",
+                        peer_id,
+                        topic.to_string()
+                    );
+                }
+                gossipsub::Event::Unsubscribed { peer_id, topic } => {
+                    println!(
+                        "Peer {:?} unsubscribed from topic '{}'",
+                        peer_id,
+                        topic.to_string()
+                    );
+                }
+                gossipsub::Event::GossipsubNotSupported { peer_id } => {
+                    println!("Peer {:?} does not support Gossipsub", peer_id);
+                }
+                gossipsub::Event::SlowPeer { peer_id, .. } => {
+                    println!("Peer {:?} does not support Gossipsub", peer_id);
+                    println!("gossipsub::Event::SlowPeer");
+                }
+            }
+        }
+
         _ => {}
     }
 }
