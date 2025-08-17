@@ -1,11 +1,11 @@
 #![doc = include_str!("../../README.md")]
 use clap::Parser;
 use futures::stream::StreamExt;
-use git2::{Commit, DiffOptions, ObjectType, Oid, Repository, Signature, Time};
+use git2::{Commit, Diff, DiffOptions, ObjectType, Oid, Repository, Signature, Time};
 use git2::{DiffFormat, Error as GitError, Pathspec};
 use libp2p::StreamProtocol;
 use libp2p::{
-    identify, identity, kad,
+    gossipsub, identify, identity, kad,
     kad::store::MemoryStore,
     kad::store::MemoryStoreConfig,
     kad::Config as KadConfig,
@@ -13,9 +13,7 @@ use libp2p::{
     swarm::{NetworkBehaviour, SwarmEvent},
     tcp, yamux, Multiaddr, PeerId, Swarm,
 };
-use std::error::Error;
-use std::str;
-use std::time::Duration;
+use std::{error::Error, hash::DefaultHasher, hash::Hash, hash::Hasher, str, time::Duration};
 use tokio::{
     io::{self, AsyncBufReadExt},
     select,
@@ -32,6 +30,7 @@ struct Behaviour {
     identify: identify::Behaviour,
     rendezvous: rendezvous::server::Behaviour,
     ping: ping::Behaviour,
+    gossipsub: gossipsub::Behaviour,
 }
 
 fn init_subscriber() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
@@ -231,6 +230,33 @@ async fn main() -> Result<(), Box<dyn Error>> {
     };
     let kad_memstore = MemoryStore::with_config(peer_id.clone(), kad_store_config.clone());
     let mut kad_config = KadConfig::default();
+    let message_id_fn = |message: &gossipsub::Message| {
+        let mut s = DefaultHasher::new();
+        message.data.hash(&mut s);
+        debug!("message:\n{0:?}", message);
+        debug!("message.data:\n{0:?}", message.data);
+        debug!("message.source:\n{0:?}", message.source);
+        debug!("message.source:\n{0:1?}", message.source);
+        debug!("message.source.peer_id:\n{0:2?}", message.source.unwrap());
+        //TODO https://docs.rs/gossipsub/latest/gossipsub/trait.DataTransform.html
+        //send Recieved message back
+        debug!(
+            "message.source.peer_id:\n{0:3}",
+            message.source.unwrap().to_string()
+        );
+        debug!("message.sequence_number:\n{0:?}", message.sequence_number);
+        debug!("message.topic:\n{0:?}", message.topic);
+        debug!("message.topic.hash:\n{0:0}", message.topic.clone());
+        //println!("{:?}", s);
+        gossipsub::MessageId::from(s.finish().to_string())
+    };
+    let gossipsub_config = gossipsub::ConfigBuilder::default()
+        .heartbeat_interval(Duration::from_secs(1))
+        .validation_mode(gossipsub::ValidationMode::Permissive)
+        .message_id_fn(message_id_fn)
+        .build()
+        .map_err(|msg| io::Error::new(io::ErrorKind::Other, msg))?;
+
     let mut swarm = libp2p::SwarmBuilder::with_existing_identity(keypair)
         .with_tokio()
         .with_tcp(
@@ -238,6 +264,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             noise::Config::new,
             yamux::Config::default,
         )?
+        .with_quic()
         .with_dns()?
         .with_behaviour(|key| {
             let kad_store_config = MemoryStoreConfig {
@@ -256,6 +283,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
             ipfs_cfg.set_query_timeout(Duration::from_secs(5 * 60));
             let ipfs_store = kad::store::MemoryStore::new(key.public().to_peer_id());
             Ok(Behaviour {
+                gossipsub: gossipsub::Behaviour::new(
+                    gossipsub::MessageAuthenticity::Signed(key.clone()),
+                    gossipsub_config,
+                )
+                .expect(""),
                 ipfs: kad::Behaviour::with_config(key.public().to_peer_id(), ipfs_store, ipfs_cfg),
                 kademlia: kad::Behaviour::with_config(
                     key.public().to_peer_id(),
