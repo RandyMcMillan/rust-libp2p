@@ -1,9 +1,19 @@
 #![doc = include_str!("../../README.md")]
+use std::{
+    error::Error,
+    hash::{DefaultHasher, Hash, Hasher},
+    str,
+    str::FromStr,
+    time::Duration,
+};
+
 use clap::{Parser, ValueEnum};
 use distributed_commit_list::utils;
 use futures::stream::StreamExt;
-use git2::{Commit, Diff, DiffOptions, ObjectType, Oid, Repository, Signature, Time};
-use git2::{DiffFormat, Error as GitError, Pathspec};
+use git2::{
+    Commit, Diff, DiffFormat, DiffOptions, Error as GitError, ObjectType, Oid, Pathspec,
+    Repository, Signature, Time,
+};
 use libp2p::StreamProtocol;
 use libp2p::{
     core,
@@ -16,7 +26,7 @@ use libp2p::{
     identify, identity,
     kad::{
         self,
-        //Kademlia, KademliaConfig, KademliaEvent,
+        // Kademlia, KademliaConfig, KademliaEvent,
         store::{MemoryStore, MemoryStoreConfig},
         Config as KadConfig,
         GetClosestPeersOk,
@@ -27,10 +37,6 @@ use libp2p::{
     swarm::{NetworkBehaviour, SwarmEvent},
     tcp, yamux, Multiaddr, PeerId, Swarm,
 };
-use std::{
-    error::Error, hash::DefaultHasher, hash::Hash, hash::Hasher, str, str::FromStr, time::Duration,
-};
-
 use tokio::{
     io::{self, AsyncBufReadExt},
     select,
@@ -163,7 +169,7 @@ fn get_commit_id_of_tag(repo: &Repository, tag_name: &str) -> Result<String, git
 }
 
 fn generate_ed25519(secret_key_seed: u8) -> identity::Keypair {
-    //let mut bytes = [0u8; 32];
+    // let mut bytes = [0u8; 32];
     let mut bytes: [u8; 32] = GNOSTR_SHA256; //[
                                              //    0xca, 0x45, 0xfe, 0x80, 0x0a, 0x2c, 0x3b, 0x67, //
                                              //    0x8e, 0x0a, 0x87, 0x7a, 0xa7, 0x7e, 0x36, 0x76, //
@@ -196,7 +202,7 @@ fn generate_ed25519(secret_key_seed: u8) -> identity::Keypair {
         debug!("\n");
     }
 
-    //bytes[31] = secret_key_seed;
+    // bytes[31] = secret_key_seed;
 
     for (i, byte) in bytes.iter().enumerate() {
         // Print context: the index and value (decimal and hex) of the current byte.
@@ -224,7 +230,7 @@ fn generate_ed25519(secret_key_seed: u8) -> identity::Keypair {
 
     let keypair =
         identity::Keypair::ed25519_from_bytes(bytes).expect("only errors on wrong length");
-    //println!("141:{}", keypair.public().to_peer_id());
+    // println!("141:{}", keypair.public().to_peer_id());
     generate_close_peer_id(bytes.clone(), 32usize);
     keypair
 }
@@ -256,7 +262,7 @@ fn generate_close_peer_id(mut bytes: [u8; 32], common_bits: usize) -> PeerId {
             }
             // Add a newline to separate the output for each byte.
             debug!("\n");
-        } //end if
+        } // end if
     }
     let mut keypair =
         identity::Keypair::ed25519_from_bytes(close_bytes).expect("only errors on wrong length");
@@ -322,7 +328,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let public_key = keypair.public();
     let peer_id = PeerId::from_public_key(&public_key);
     warn!("Local PeerId: {}", peer_id);
-    //kad_store_config
+    // kad_store_config
     let kad_store_config = MemoryStoreConfig {
         max_provided_keys: usize::MAX,
         max_providers_per_key: usize::MAX,
@@ -339,8 +345,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         info!("message.source:\n{0:?}", message.source);
         info!("message.source:\n{0:1?}", message.source);
         info!("message.source.peer_id:\n{0:2?}", message.source.unwrap());
-        //TODO https://docs.rs/gossipsub/latest/gossipsub/trait.DataTransform.html
-        //send Recieved message back
+        // TODO https://docs.rs/gossipsub/latest/gossipsub/trait.DataTransform.html
+        // send Recieved message back
         info!(
             "message.source.peer_id:\n{0:3}",
             message.source.unwrap().to_string()
@@ -348,7 +354,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         info!("message.sequence_number:\n{0:?}", message.sequence_number);
         info!("message.topic:\n{0:?}", message.topic);
         info!("message.topic.hash:\n{0:0}", message.topic.clone());
-        //println!("{:?}", s);
+        // println!("{:?}", s);
         gossipsub::MessageId::from(s.finish().to_string())
     };
     let gossipsub_config = gossipsub::ConfigBuilder::default()
@@ -473,7 +479,7 @@ async fn handle_swarm_event(swarm: &mut Swarm<Behaviour>, event: SwarmEvent<Beha
             warn!("Listening on {address}");
         }
 
-        //Mdns
+        // Mdns
         SwarmEvent::Behaviour(BehaviourEvent::Mdns(mdns::Event::Discovered(list))) => {
             for (peer_id, multiaddr) in list {
                 info!("mDNS discovered a new peer: {peer_id}\n{multiaddr}");
@@ -483,7 +489,7 @@ async fn handle_swarm_event(swarm: &mut Swarm<Behaviour>, event: SwarmEvent<Beha
                     .add_address(&peer_id, multiaddr);
             }
         }
-        //Kademlia
+        // Kademlia
         SwarmEvent::Behaviour(BehaviourEvent::Kademlia(kad::Event::OutboundQueryProgressed {
             result,
             ..
@@ -521,7 +527,7 @@ async fn handle_swarm_event(swarm: &mut Swarm<Behaviour>, event: SwarmEvent<Beha
             }
             _ => {}
         },
-        //Gossipsub
+        // Gossipsub
         SwarmEvent::Behaviour(BehaviourEvent::Gossipsub(event)) => {
             // This is where we handle all events from the Gossipsub behaviour
             match event {
@@ -564,19 +570,17 @@ async fn handle_swarm_event(swarm: &mut Swarm<Behaviour>, event: SwarmEvent<Beha
     }
 }
 
-/*
-async fn handle_swarm_event(swarm: &mut Swarm<Behaviour>, event: SwarmEvent<BehaviourEvent>) {
-*/
+// async fn handle_swarm_event(swarm: &mut Swarm<Behaviour>, event: SwarmEvent<BehaviourEvent>) {
 async fn handle_input_line(swarm: &mut Swarm<Behaviour>, line: String) {
     let mut args = line.split_whitespace();
     match args.next() {
         Some("TOPIC") => {
             if let Some(key_str) = args.next() {
-                let key = kad::RecordKey::new(&key_str);
-                //swarm.behaviour_mut().kademlia.get_record(key.clone());
+                //let key = kad::RecordKey::new(&key_str);
+                // swarm.behaviour_mut().kademlia.get_record(key.clone());
 
                 let topic = IdentTopic::new(key_str.clone());
-                debug!("566:subscribe topic={}", topic.clone());
+                println!("583:subscribe topic={}", topic.clone());
                 swarm
                     .behaviour_mut()
                     .gossipsub
@@ -629,13 +633,25 @@ async fn handle_input_line(swarm: &mut Swarm<Behaviour>, line: String) {
                 } else {
                     info!(
                         "started providing put record.key:{:?} record.value:{:?} key:{:?}",
-                        record.key,
+                        record.key.clone(),
                         record.value,
                         key.clone()
                     );
+
+                    let topic = IdentTopic::new(format!(
+                        "{}",
+                        std::str::from_utf8(record.key.as_ref()).unwrap_or("invalid utf8"),
+                    ));
+
+                    println!("652:subscribe topic={}", topic.clone());
+                    swarm
+                        .behaviour_mut()
+                        .gossipsub
+                        .subscribe(&topic)
+                        .expect("failed to subscribe to TOPIC");
+                    //} else {
+                    eprintln!("Usage: PUT <key> <value>");
                 }
-            } else {
-                eprintln!("Usage: PUT <key> <value>");
             }
         }
         Some("PUT_PROVIDER") => {
@@ -761,15 +777,15 @@ struct Args {
     #[clap(long)]
     secret: Option<u8>,
 
-    //peer implies lookup by dht default --network ipfs
+    // peer implies lookup by dht default --network ipfs
     #[clap(long)]
     peer: Option<String>,
 
-    //multiaddr implies direct connect
+    // multiaddr implies direct connect
     #[clap(long)]
     multiaddr: Option<Multiaddr>,
 
-    //network
+    // network
     #[clap(long, value_enum, default_value = &"ipfs")]
     network: Option<Network>,
 
