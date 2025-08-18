@@ -1,21 +1,22 @@
 #![doc = include_str!("../../README.md")]
+use std::{error::Error, str, time::Duration};
+
 use clap::Parser;
 use futures::stream::StreamExt;
-use git2::{Commit, DiffOptions, ObjectType, Oid, Repository, Signature, Time};
-use git2::{DiffFormat, Error as GitError, Pathspec};
-use libp2p::StreamProtocol;
+use git2::{
+    Commit, DiffFormat, DiffOptions, Error as GitError, ObjectType, Oid, Pathspec, Repository,
+    Signature, Time,
+};
 use libp2p::{
     identify, identity, kad,
-    kad::store::MemoryStore,
-    kad::store::MemoryStoreConfig,
-    kad::Config as KadConfig,
+    kad::{
+        store::{MemoryStore, MemoryStoreConfig},
+        Config as KadConfig,
+    },
     mdns, noise, ping, rendezvous,
     swarm::{NetworkBehaviour, SwarmEvent},
-    tcp, yamux, Multiaddr, PeerId, Swarm,
+    tcp, yamux, Multiaddr, PeerId, StreamProtocol, Swarm,
 };
-use std::error::Error;
-use std::str;
-use std::time::Duration;
 use tokio::{
     io::{self, AsyncBufReadExt},
     select,
@@ -138,7 +139,7 @@ fn generate_ed25519(secret_key_seed: u8) -> identity::Keypair {
 
     let keypair =
         identity::Keypair::ed25519_from_bytes(bytes).expect("only errors on wrong length");
-    //println!("141:{}", keypair.public().to_peer_id());
+    // println!("141:{}", keypair.public().to_peer_id());
     generate_close_peer_id(bytes.clone(), 1usize);
     keypair
 }
@@ -215,7 +216,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     if let Some(true) = Some(args.peer.is_some()) {}
     if let Some(true) = Some(args.multiaddr.is_some()) {}
 
-    //let keypair = generate_ed25519(args.secret.unwrap_or(0));
+    // let keypair = generate_ed25519(args.secret.unwrap_or(0));
     let keypair = generate_ed25519(0);
     let peer_id = PeerId::from(keypair.public());
     warn!("Local PeerId: {}", peer_id);
