@@ -474,9 +474,17 @@ async fn handle_input_line(swarm: &mut Swarm<Behaviour>, line: String) {
         Some("TOPIC") => {
             if let Some(key_str) = args.next() {
                 let key = kad::RecordKey::new(&key_str);
-                swarm.behaviour_mut().kademlia.get_record(key);
+                //swarm.behaviour_mut().kademlia.get_record(key.clone());
+
+                let topic = IdentTopic::new(key_str.clone());
+                println!("480:subscribe topic={}", topic.clone());
+                swarm
+                    .behaviour_mut()
+                    .gossipsub
+                    .subscribe(&topic)
+                    .expect("failed to subscribe to TOPIC");
             } else {
-                eprintln!("Usage: GET <key>");
+                eprintln!("Usage: TOPIC <topic_string>");
             }
         }
         Some("GET") => {
