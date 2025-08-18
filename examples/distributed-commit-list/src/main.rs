@@ -5,7 +5,9 @@ use git2::{Commit, Diff, DiffOptions, ObjectType, Oid, Repository, Signature, Ti
 use git2::{DiffFormat, Error as GitError, Pathspec};
 use libp2p::StreamProtocol;
 use libp2p::{
-    gossipsub, gossipsub::IdentTopic, identify, identity, kad,
+    gossipsub,
+    gossipsub::IdentTopic,
+    identify, identity, kad,
     kad::store::MemoryStore,
     kad::store::MemoryStoreConfig,
     kad::Config as KadConfig,
@@ -255,7 +257,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .build()
         .map_err(|msg| io::Error::new(io::ErrorKind::Other, msg))?;
 
-
     let topic = IdentTopic::new("ALEPH_ALIVE");
 
     let mut swarm = libp2p::SwarmBuilder::with_existing_identity(keypair)
@@ -349,7 +350,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
     debug!("Initial data publishing complete.");
 
-
     //TODO TOPIC update subscribe
     swarm.behaviour_mut().gossipsub.subscribe(&topic)?;
 
@@ -359,7 +359,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         select! {
             line = stdin.next_line() => {
                 let line = line?.ok_or("stdin closed")?;
-                handle_input_line(&mut swarm.behaviour_mut().kademlia, line).await;
+                handle_input_line(&mut swarm, line).await;
             }
             event = swarm.select_next_some() => {
                 handle_swarm_event(&mut swarm, event).await;
@@ -465,13 +465,24 @@ async fn handle_swarm_event(swarm: &mut Swarm<Behaviour>, event: SwarmEvent<Beha
     }
 }
 
-async fn handle_input_line(kademlia: &mut kad::Behaviour<kad::store::MemoryStore>, line: String) {
+/*
+async fn handle_swarm_event(swarm: &mut Swarm<Behaviour>, event: SwarmEvent<BehaviourEvent>) {
+*/
+async fn handle_input_line(swarm: &mut Swarm<Behaviour>, line: String) {
     let mut args = line.split_whitespace();
     match args.next() {
+        Some("TOPIC") => {
+            if let Some(key_str) = args.next() {
+                let key = kad::RecordKey::new(&key_str);
+                swarm.behaviour_mut().kademlia.get_record(key);
+            } else {
+                eprintln!("Usage: GET <key>");
+            }
+        }
         Some("GET") => {
             if let Some(key_str) = args.next() {
                 let key = kad::RecordKey::new(&key_str);
-                kademlia.get_record(key);
+                swarm.behaviour_mut().kademlia.get_record(key);
             } else {
                 eprintln!("Usage: GET <key>");
             }
@@ -479,7 +490,7 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<kad::store::MemoryStore
         Some("GET_PROVIDERS") => {
             if let Some(key_str) = args.next() {
                 let key = kad::RecordKey::new(&key_str);
-                kademlia.get_providers(key);
+                swarm.behaviour_mut().kademlia.get_providers(key);
             } else {
                 eprintln!("Usage: GET_PROVIDERS <key>");
             }
@@ -494,7 +505,11 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<kad::store::MemoryStore
                     publisher: None,
                     expires: None,
                 };
-                if let Err(e) = kademlia.put_record(record.clone(), kad::Quorum::Majority) {
+                if let Err(e) = swarm
+                    .behaviour_mut()
+                    .kademlia
+                    .put_record(record.clone(), kad::Quorum::Majority)
+                {
                     debug!("Failed to store record locally: {:?}", e);
                 } else {
                     info!(
@@ -502,7 +517,7 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<kad::store::MemoryStore
                         record.key, record.value
                     );
                 }
-                if let Err(e) = kademlia.start_providing(key.clone()) {
+                if let Err(e) = swarm.behaviour_mut().kademlia.start_providing(key.clone()) {
                     debug!("Failed to store record locally: {:?}", e);
                 } else {
                     info!(
@@ -526,7 +541,7 @@ async fn handle_input_line(kademlia: &mut kad::Behaviour<kad::store::MemoryStore
                     }
                 }
             };
-            if let Err(e) = kademlia.start_providing(key) {
+            if let Err(e) = swarm.behaviour_mut().kademlia.start_providing(key) {
                 eprintln!("Failed to store record locally: {:?}", e);
             }
         }
@@ -558,7 +573,11 @@ async fn run(args: &Args, swarm: &mut Swarm<Behaviour>) -> Result<(), Box<dyn Er
                         .behaviour_mut()
                         .kademlia
                         .put_record(record, kad::Quorum::Majority)?;
-                    swarm.behaviour_mut().kademlia.start_providing(key.clone())?;
+                    swarm
+                        .behaviour_mut()
+                        .kademlia
+                        .start_providing(key.clone())?;
+
                     let topic = IdentTopic::new(tag_name.clone());
                     println!("subscribe topic={}", topic.clone());
                     swarm.behaviour_mut().gossipsub.subscribe(&topic)?;
