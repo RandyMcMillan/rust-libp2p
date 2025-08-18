@@ -1,5 +1,5 @@
 #![doc = include_str!("../../README.md")]
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use futures::stream::StreamExt;
 use git2::{Commit, Diff, DiffOptions, ObjectType, Oid, Repository, Signature, Time};
 use git2::{DiffFormat, Error as GitError, Pathspec};
@@ -22,6 +22,14 @@ use tokio::{
 };
 use tracing::{debug, info, trace, warn, Level};
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum Network {
+    Kusama,
+    Polkadot,
+    Ipfs,
+    Ursa,
+}
 
 // --- Top-level NetworkBehaviour Definition ---
 #[derive(NetworkBehaviour)]
@@ -233,20 +241,20 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let message_id_fn = |message: &gossipsub::Message| {
         let mut s = DefaultHasher::new();
         message.data.hash(&mut s);
-        debug!("message:\n{0:?}", message);
-        debug!("message.data:\n{0:?}", message.data);
-        debug!("message.source:\n{0:?}", message.source);
-        debug!("message.source:\n{0:1?}", message.source);
-        debug!("message.source.peer_id:\n{0:2?}", message.source.unwrap());
+        info!("message:\n{0:?}", message);
+        info!("message.data:\n{0:?}", message.data);
+        info!("message.source:\n{0:?}", message.source);
+        info!("message.source:\n{0:1?}", message.source);
+        info!("message.source.peer_id:\n{0:2?}", message.source.unwrap());
         //TODO https://docs.rs/gossipsub/latest/gossipsub/trait.DataTransform.html
         //send Recieved message back
-        debug!(
+        info!(
             "message.source.peer_id:\n{0:3}",
             message.source.unwrap().to_string()
         );
-        debug!("message.sequence_number:\n{0:?}", message.sequence_number);
-        debug!("message.topic:\n{0:?}", message.topic);
-        debug!("message.topic.hash:\n{0:0}", message.topic.clone());
+        info!("message.sequence_number:\n{0:?}", message.sequence_number);
+        info!("message.topic:\n{0:?}", message.topic);
+        info!("message.topic.hash:\n{0:0}", message.topic.clone());
         //println!("{:?}", s);
         gossipsub::MessageId::from(s.finish().to_string())
     };
@@ -661,10 +669,19 @@ async fn run(args: &Args, swarm: &mut Swarm<Behaviour>) -> Result<(), Box<dyn Er
 struct Args {
     #[clap(long)]
     secret: Option<u8>,
+
+    //peer implies lookup by dht default --network ipfs
     #[clap(long)]
     peer: Option<String>,
+
+    //multiaddr implies direct connect
     #[clap(long)]
     multiaddr: Option<Multiaddr>,
+
+    //network
+    #[clap(long, value_enum, default_value = &"ipfs")]
+    network: Network,
+
     #[clap(long)]
     flag_topo_order: bool,
     #[clap(long)]
