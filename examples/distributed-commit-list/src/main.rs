@@ -5,7 +5,7 @@ use git2::{Commit, Diff, DiffOptions, ObjectType, Oid, Repository, Signature, Ti
 use git2::{DiffFormat, Error as GitError, Pathspec};
 use libp2p::StreamProtocol;
 use libp2p::{
-    gossipsub, identify, identity, kad,
+    gossipsub, gossipsub::IdentTopic, identify, identity, kad,
     kad::store::MemoryStore,
     kad::store::MemoryStoreConfig,
     kad::Config as KadConfig,
@@ -255,6 +255,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .build()
         .map_err(|msg| io::Error::new(io::ErrorKind::Other, msg))?;
 
+
+    let topic = IdentTopic::new("ALEPH_ALIVE");
+
     let mut swarm = libp2p::SwarmBuilder::with_existing_identity(keypair)
         .with_tokio()
         .with_tcp(
@@ -345,6 +348,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
         warn!("Error during initial git processing: {}", e);
     }
     debug!("Initial data publishing complete.");
+
+
+    //TODO TOPIC update subscribe
+    swarm.behaviour_mut().gossipsub.subscribe(&topic)?;
 
     // --- Main Event Loop ---
     let mut stdin = io::BufReader::new(io::stdin()).lines();
@@ -446,11 +453,10 @@ async fn handle_swarm_event(swarm: &mut Swarm<Behaviour>, event: SwarmEvent<Beha
                     );
                 }
                 gossipsub::Event::GossipsubNotSupported { peer_id } => {
-                    println!("Peer {:?} does not support Gossipsub", peer_id);
+                    debug!("Peer {:?} does not support Gossipsub", peer_id);
                 }
                 gossipsub::Event::SlowPeer { peer_id, .. } => {
-                    println!("Peer {:?} does not support Gossipsub", peer_id);
-                    println!("gossipsub::Event::SlowPeer");
+                    println!("SlowPeer {:?}", peer_id);
                 }
             }
         }
@@ -552,7 +558,10 @@ async fn run(args: &Args, swarm: &mut Swarm<Behaviour>) -> Result<(), Box<dyn Er
                         .behaviour_mut()
                         .kademlia
                         .put_record(record, kad::Quorum::Majority)?;
-                    swarm.behaviour_mut().kademlia.start_providing(key)?;
+                    swarm.behaviour_mut().kademlia.start_providing(key.clone())?;
+                    let topic = IdentTopic::new(tag_name.clone());
+                    println!("subscribe topic={}", topic.clone());
+                    swarm.behaviour_mut().gossipsub.subscribe(&topic)?;
                 }
             }
         }
