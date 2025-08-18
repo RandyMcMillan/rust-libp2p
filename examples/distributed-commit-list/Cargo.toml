@@ -9,6 +9,7 @@ default-run = "distributed-commit-list"
 release = false
 
 [dependencies]
+ansi_term = "0.12.1"
 async-trait = "0.1"
 clap = { version = "4.4.13", features = ["derive"] }
 futures = { workspace = true }

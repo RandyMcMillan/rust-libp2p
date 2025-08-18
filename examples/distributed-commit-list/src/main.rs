@@ -1,5 +1,6 @@
 #![doc = include_str!("../../README.md")]
 use clap::{Parser, ValueEnum};
+use distributed_commit_list::utils;
 use futures::stream::StreamExt;
 use git2::{Commit, Diff, DiffOptions, ObjectType, Oid, Repository, Signature, Time};
 use git2::{DiffFormat, Error as GitError, Pathspec};
