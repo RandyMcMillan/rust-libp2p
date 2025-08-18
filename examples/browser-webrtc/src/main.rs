@@ -25,7 +25,7 @@ use tower_http::cors::{Any, CorsLayer};
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let _ = tracing_subscriber::fmt()
-        .with_env_filter("browser_webrtc_example=debug,libp2p_webrtc=info,libp2p_ping=debug")
+        .with_env_filter("browser_webrtc_example=trace,libp2p_webrtc=trace,libp2p_ping=trace")
         .try_init();
 
     let mut swarm = libp2p::SwarmBuilder::with_new_identity()
@@ -96,6 +96,7 @@ pub(crate) async fn serve(libp2p_transport: Multiaddr) {
     let server = Router::new()
         .route("/", get(get_index))
         .route("/index.html", get(get_index))
+        .route("/main.html", get(get_main))
         .route("/:path", get(get_static_file))
         .with_state(Libp2pEndpoint(libp2p_transport))
         .layer(
@@ -134,6 +135,19 @@ async fn get_index(
 
     let html = std::str::from_utf8(&content)
         .expect("index.html to be valid utf8")
+        .replace("__LIBP2P_ENDPOINT__", &libp2p_endpoint.to_string());
+
+    Ok(Html(html))
+}
+async fn get_main(
+    State(Libp2pEndpoint(libp2p_endpoint)): State<Libp2pEndpoint>,
+) -> Result<Html<String>, StatusCode> {
+    let content = StaticFiles::get("main.html")
+        .ok_or(StatusCode::NOT_FOUND)?
+        .data;
+
+    let html = std::str::from_utf8(&content)
+        .expect("main.html to be valid utf8")
         .replace("__LIBP2P_ENDPOINT__", &libp2p_endpoint.to_string());
 
     Ok(Html(html))

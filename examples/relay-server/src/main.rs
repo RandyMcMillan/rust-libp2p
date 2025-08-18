@@ -45,7 +45,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let opt = Opt::parse();
 
     // Create a static known PeerId based on given secret
-    let local_key: identity::Keypair = generate_ed25519(opt.secret_key_seed);
+    let local_key: identity::Keypair = generate_ed25519(opt.secret_key_seed.unwrap_or(0));
+
+    println!("local_key={:?}", local_key);
 
     let mut swarm = libp2p::SwarmBuilder::with_existing_identity(local_key)
         .with_tokio()
@@ -59,7 +61,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             relay: relay::Behaviour::new(key.public().to_peer_id(), Default::default()),
             ping: ping::Behaviour::new(ping::Config::new()),
             identify: identify::Behaviour::new(identify::Config::new(
-                "/TODO/0.0.1".to_string(),
+                "/GNOSTR/0.0.1".to_string(),
                 key.public(),
             )),
         })?
@@ -71,7 +73,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             Some(true) => Protocol::from(Ipv6Addr::UNSPECIFIED),
             _ => Protocol::from(Ipv4Addr::UNSPECIFIED),
         })
-        .with(Protocol::Tcp(opt.port));
+        .with(Protocol::Tcp(opt.port.unwrap_or(0)));
     swarm.listen_on(listen_addr_tcp)?;
 
     let listen_addr_quic = Multiaddr::empty()
@@ -79,7 +81,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             Some(true) => Protocol::from(Ipv6Addr::UNSPECIFIED),
             _ => Protocol::from(Ipv4Addr::UNSPECIFIED),
         })
-        .with(Protocol::Udp(opt.port))
+        .with(Protocol::Udp(opt.port.unwrap_or(0)))
         .with(Protocol::QuicV1);
     swarm.listen_on(listen_addr_quic)?;
 
@@ -94,10 +96,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     swarm.add_external_address(observed_addr.clone());
                 }
 
-                println!("{event:?}")
+                println!("99:{event:?}")
             }
             SwarmEvent::NewListenAddr { address, .. } => {
-                println!("Listening on {address:?}");
+                println!("102:Listening on {address:?}");
             }
             _ => {}
         }
@@ -126,10 +128,10 @@ struct Opt {
     use_ipv6: Option<bool>,
 
     /// Fixed value to generate deterministic peer id
-    #[clap(long)]
-    secret_key_seed: u8,
+    #[clap(long, short)]
+    secret_key_seed: Option<u8>,
 
     /// The port used to listen on all interfaces
-    #[clap(long)]
-    port: u16,
+    #[clap(long, short)]
+    port: Option<u16>,
 }
