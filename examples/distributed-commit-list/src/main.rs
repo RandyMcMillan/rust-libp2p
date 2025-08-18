@@ -5,6 +5,11 @@ use git2::{Commit, Diff, DiffOptions, ObjectType, Oid, Repository, Signature, Ti
 use git2::{DiffFormat, Error as GitError, Pathspec};
 use libp2p::StreamProtocol;
 use libp2p::{
+    core,
+    core::{
+        muxing::StreamMuxerBox, transport::OrTransport, transport::Transport, upgrade,
+        ConnectedPoint,
+    },
     gossipsub,
     gossipsub::IdentTopic,
     identify, identity, kad,
