@@ -1456,6 +1456,8 @@ dependencies = [
  "futures",
  "git2",
  "libp2p 0.54.2",
+ "libp2p-mplex",
+ "libp2p-quic 0.11.2",
  "reqwest 0.12.12",
  "time 0.1.45",
  "tokio",
