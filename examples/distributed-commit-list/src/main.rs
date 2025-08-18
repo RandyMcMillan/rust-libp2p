@@ -538,15 +538,15 @@ async fn handle_swarm_event(swarm: &mut Swarm<Behaviour>, event: SwarmEvent<Beha
                     );
                 }
                 gossipsub::Event::Subscribed { peer_id, topic } => {
-                    println!(
-                        "Peer {:?} subscribed to topic '{}'",
+                    warn!(
+                        "542:Peer {:?} subscribed to topic '{}'",
                         peer_id,
                         topic.to_string()
                     );
                 }
                 gossipsub::Event::Unsubscribed { peer_id, topic } => {
-                    println!(
-                        "Peer {:?} unsubscribed from topic '{}'",
+                    warn!(
+                        "549:Peer {:?} unsubscribed from topic '{}'",
                         peer_id,
                         topic.to_string()
                     );
@@ -555,7 +555,7 @@ async fn handle_swarm_event(swarm: &mut Swarm<Behaviour>, event: SwarmEvent<Beha
                     debug!("Peer {:?} does not support Gossipsub", peer_id);
                 }
                 gossipsub::Event::SlowPeer { peer_id, .. } => {
-                    println!("SlowPeer {:?}", peer_id);
+                    warn!("SlowPeer {:?}", peer_id);
                 }
             }
         }
