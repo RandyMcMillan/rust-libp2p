@@ -257,7 +257,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .build()
         .map_err(|msg| io::Error::new(io::ErrorKind::Other, msg))?;
 
-    let topic = IdentTopic::new("ALEPH_ALIVE");
+    let topic = IdentTopic::new("GNOSTR");
 
     let mut swarm = libp2p::SwarmBuilder::with_existing_identity(keypair)
         .with_tokio()
