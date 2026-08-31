@@ -85,6 +85,50 @@ Incoming connection failed: Transport(Other(Custom { kind: Other, error: Right(C
 3. **Compatibility matrix:** The failures involve rust-libp2p-head negotiating with go-libp2p, js-libp2p, jvm-libp2p, and other implementations — compatibility is a cross-project concern
 4. **Historical pattern:** The same failures exist in upstream `libp2p/rust-libp2p` master branch
 
+## Attempted "Bandaid" Fix (Reverted)
+
+Commit `0bd27920b` attempted to silence the failures by removing `webrtc-direct` from the native test transport list and adding `continue-on-error: true` to the hole-punch job:
+
+```diff
+commit 0bd27920b39a611470e8a01f391acfbcbe376636
+Author: randymcmillan <randymcmillan@protonmail.com>
+Date:   Mon Aug 31 09:14:40 2026 -0400
+
+    ci(interop): remove experimental webrtc-direct from native tests; allow hole-punch tests to fail softly
+
+ diff --git a/.github/workflows/interop-test.yml b/.github/workflows/interop-test.yml
+ index 70ef4b839..ad2b9d595 100644
+ --- a/.github/workflows/interop-test.yml
+ +++ b/.github/workflows/interop-test.yml
+ @@ -48,6 +48,7 @@ jobs:
+    run-holepunching-interop:
+      name: Run hole-punch interoperability tests
+      if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+ +    continue-on-error: true
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v7
+ diff --git a/interop-tests/native-ping-version.json b/interop-tests/native-ping-version.json
+ index c509f72bf..de676bc0b 100644
+ --- a/interop-tests/native-ping-version.json
+ +++ b/interop-tests/native-ping-version.json
+ @@ -4,8 +4,7 @@
+    "transports": [
+      "ws",
+      "tcp",
+ -    "quic-v1",
+ -    "webrtc-direct"
+ +    "quic-v1"
+    ],
+    "secureChannels": [
+      "tls",
+```
+
+This was **reverted in `a5e94a0e3`** because:
+1. Removing `webrtc-direct` only hid one symptom — QUIC and TCP combinations still failed in certain directions
+2. `continue-on-error` masked real infrastructure problems without addressing the root cause
+3. The failures are confirmed upstream issues; hiding them in this fork creates a maintenance trap
+
 ## Recommended Next Steps
 
 1. **Short term:** Do not block CI on interop test results. The workflow can be triggered manually via `workflow_dispatch` for targeted testing.
