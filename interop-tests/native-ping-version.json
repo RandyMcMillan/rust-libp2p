@@ -4,8 +4,7 @@
   "transports": [
     "ws",
     "tcp",
-    "quic-v1",
-    "webrtc-direct"
+    "quic-v1"
   ],
   "secureChannels": [
     "tls",
