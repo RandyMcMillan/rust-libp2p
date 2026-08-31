@@ -7,6 +7,41 @@ on:
     tags:
       - '**'
   workflow_dispatch:
+    inputs:
+      run_chromium:
+        description: 'Run chromium transport interop tests'
+        required: false
+        default: true
+        type: boolean
+      run_native:
+        description: 'Run native transport interop tests (upstream failures, see INTEROP_FAILURES.md)'
+        required: false
+        default: false
+        type: boolean
+      run_hole_punch:
+        description: 'Run hole-punch interop tests (upstream failures, see INTEROP_FAILURES.md)'
+        required: false
+        default: false
+        type: boolean
+      worker_count:
+        description: 'Number of test workers'
+        required: false
+        default: 16
+        type: number
+      ref_tag:
+        description: 'Tag suffix for test filter and image (e.g. head or a version tag)'
+        required: false
+        default: 'head'
+        type: string
+      runner_os:
+        description: 'Runner OS for test jobs'
+        required: false
+        default: 'ubuntu-latest'
+        type: choice
+        options:
+          - ubuntu-latest
+          - ubuntu-24.04
+          - ubuntu-22.04
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -15,8 +50,8 @@ concurrency:
 jobs:
   run-transport-interop:
     name: Run transport interoperability tests
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository || (github.event_name == 'workflow_dispatch' && inputs.run_chromium)
+    runs-on: ${{ inputs.runner_os || 'ubuntu-latest' }}
     strategy:
       matrix:
         flavour: [chromium]
@@ -37,20 +72,20 @@ jobs:
       - name: Run ${{ matrix.flavour }} tests
         uses: libp2p/test-plans/.github/actions/run-transport-interop-test@master
         with:
-          test-filter: ${{ matrix.flavour }}-rust-libp2p-head
+          test-filter: ${{ matrix.flavour }}-rust-libp2p-${{ inputs.ref_tag || 'head' }}
           test-results-suffix: ${{matrix.flavour}}
           extra-versions: ${{ github.workspace }}/interop-tests/${{ matrix.flavour }}-ping-version.json
           s3-cache-bucket: ${{ vars.S3_LIBP2P_BUILD_CACHE_BUCKET_NAME }}
           s3-access-key-id: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_ACCESS_KEY_ID }}
           s3-secret-access-key: ${{ secrets.S3_LIBP2P_BUILD_CACHE_AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_REGION }}
-          worker-count: 16
+          worker-count: ${{ inputs.worker_count }}
 
   run-native-transport-interop:
     name: Run native transport interoperability tests
     # Native tests have upstream failures (see INTEROP_FAILURES.md).
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && inputs.run_native
+    runs-on: ${{ inputs.runner_os || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v4
@@ -65,32 +100,32 @@ jobs:
       - name: Run native tests
         uses: libp2p/test-plans/.github/actions/run-transport-interop-test@master
         with:
-          test-filter: native-rust-libp2p-head
+          test-filter: native-rust-libp2p-${{ inputs.ref_tag || 'head' }}
           test-results-suffix: native
           extra-versions: ${{ github.workspace }}/interop-tests/native-ping-version.json
           s3-cache-bucket: ${{ vars.S3_LIBP2P_BUILD_CACHE_BUCKET_NAME }}
           s3-access-key-id: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_ACCESS_KEY_ID }}
           s3-secret-access-key: ${{ secrets.S3_LIBP2P_BUILD_CACHE_AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_REGION }}
-          worker-count: 16
+          worker-count: ${{ inputs.worker_count }}
   run-holepunching-interop:
     name: Run hole-punch interoperability tests
     # Upstream test-plans infrastructure is broken for hole-punch tests.
     # See INTEROP_FAILURES.md. Only run on manual dispatch until upstream is fixed.
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && inputs.run_hole_punch
+    runs-on: ${{ inputs.runner_os || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v4
       - name: Build image
-        run: docker buildx build --load -t rust-libp2p-head . -f hole-punching-tests/Dockerfile
+        run: docker buildx build --load -t rust-libp2p-${{ inputs.ref_tag || 'head' }} . -f hole-punching-tests/Dockerfile
       - name: Run tests
         uses: libp2p/test-plans/.github/actions/run-interop-hole-punch-test@master
         with:
-          test-filter: rust-libp2p-head
+          test-filter: rust-libp2p-${{ inputs.ref_tag || 'head' }}
           extra-versions: ${{ github.workspace }}/hole-punching-tests/version.json
           s3-cache-bucket: ${{ vars.S3_LIBP2P_BUILD_CACHE_BUCKET_NAME }}
           s3-access-key-id: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_ACCESS_KEY_ID }}
           s3-secret-access-key: ${{ secrets.S3_LIBP2P_BUILD_CACHE_AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_REGION }}
-          worker-count: 16
+          worker-count: ${{ inputs.worker_count }}
