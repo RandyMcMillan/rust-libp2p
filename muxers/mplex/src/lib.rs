@@ -20,7 +20,6 @@
 
 //! Implementation of the Stream Multiplexer [Mplex](https://github.com/libp2p/specs/blob/master/mplex/README.md) protocol.
 
-#![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
 mod codec;
 mod config;

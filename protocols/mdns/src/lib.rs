@@ -32,7 +32,6 @@
 //! which implements the `NetworkBehaviour` trait. This struct will automatically discover other
 //! libp2p nodes on the local network.
 
-#![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
 use std::{
     net::{Ipv4Addr, Ipv6Addr},

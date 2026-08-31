@@ -20,7 +20,6 @@
 
 //! Implementation of the libp2p `Transport` trait for Websockets.
 
-#![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
 pub mod error;
 pub mod framed;

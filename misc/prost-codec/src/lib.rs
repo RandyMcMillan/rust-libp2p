@@ -1,5 +1,3 @@
-#![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
-
 use std::{io, marker::PhantomData};
 
 use asynchronous_codec::{Decoder, Encoder};

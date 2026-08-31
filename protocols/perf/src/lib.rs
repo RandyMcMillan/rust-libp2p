@@ -22,7 +22,6 @@
 //!
 //! Do not use in untrusted environments.
 
-#![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
 use std::fmt::Display;
 

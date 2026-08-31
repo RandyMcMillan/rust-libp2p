@@ -92,7 +92,6 @@
 //!
 //! For an example on how to use gossipsub, see the [chat-example](https://github.com/libp2p/rust-libp2p/tree/master/examples/chat).
 
-#![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
 mod backoff;
 mod behaviour;
