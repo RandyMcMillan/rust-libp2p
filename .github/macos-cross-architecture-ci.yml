@@ -1,0 +1,175 @@
+name: macOS Cross-Architecture CI
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+    inputs:
+      macos_latest:
+        description: 'Include macos-latest'
+        required: false
+        default: true
+        type: boolean
+      macos_26:
+        description: 'Include macos-26'
+        required: false
+        default: true
+        type: boolean
+      macos_26_intel:
+        description: 'Include macos-26-intel'
+        required: false
+        default: true
+        type: boolean
+      macos_15:
+        description: 'Include macos-15'
+        required: false
+        default: true
+        type: boolean
+      macos_15_intel:
+        description: 'Include macos-15-intel'
+        required: false
+        default: true
+        type: boolean
+      macos_14:
+        description: 'Include macos-14'
+        required: false
+        default: true
+        type: boolean
+      macos_26_large:
+        description: 'Include macos-26-large'
+        required: false
+        default: false
+        type: boolean
+      macos_26_xlarge:
+        description: 'Include macos-26-xlarge'
+        required: false
+        default: false
+        type: boolean
+      macos_15_large:
+        description: 'Include macos-15-large'
+        required: false
+        default: false
+        type: boolean
+      macos_15_xlarge:
+        description: 'Include macos-15-xlarge'
+        required: false
+        default: false
+        type: boolean
+      enable_debug:
+        description: 'Enable verbose logging / debug outputs'
+        required: false
+        default: false
+        type: boolean
+      custom_cargo_args:
+        description: 'Additional flags for cargo build (e.g. --release)'
+        required: false
+        default: '--release'
+        type: string
+
+jobs:
+  select-macos-matrix:
+    name: Select macOS matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - id: matrix
+        shell: bash
+        env:
+          MACOS_LATEST: ${{ github.event_name == 'workflow_dispatch' && inputs.macos_latest || github.event_name != 'workflow_dispatch' }}
+          MACOS_26: ${{ github.event_name == 'workflow_dispatch' && inputs.macos_26 || github.event_name != 'workflow_dispatch' }}
+          MACOS_26_INTEL: ${{ github.event_name == 'workflow_dispatch' && inputs.macos_26_intel || github.event_name != 'workflow_dispatch' }}
+          MACOS_15: ${{ github.event_name == 'workflow_dispatch' && inputs.macos_15 || github.event_name != 'workflow_dispatch' }}
+          MACOS_15_INTEL: ${{ github.event_name == 'workflow_dispatch' && inputs.macos_15_intel || github.event_name != 'workflow_dispatch' }}
+          MACOS_14: ${{ github.event_name == 'workflow_dispatch' && inputs.macos_14 || github.event_name != 'workflow_dispatch' }}
+          MACOS_26_LARGE: ${{ github.event_name == 'workflow_dispatch' && inputs.macos_26_large || github.event_name != 'workflow_dispatch' }}
+          MACOS_26_XLARGE: ${{ github.event_name == 'workflow_dispatch' && inputs.macos_26_xlarge || github.event_name != 'workflow_dispatch' }}
+          MACOS_15_LARGE: ${{ github.event_name == 'workflow_dispatch' && inputs.macos_15_large || github.event_name != 'workflow_dispatch' }}
+          MACOS_15_XLARGE: ${{ github.event_name == 'workflow_dispatch' && inputs.macos_15_xlarge || github.event_name != 'workflow_dispatch' }}
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const enabled = (name, runner, targetArch) => {
+            const value = process.env[name];
+            return value === 'true' || value === '1' || value === true ? { runner, 'target-arch': targetArch } : null;
+          };
+
+          const entries = [
+            enabled('MACOS_LATEST', 'macos-latest', 'arm64'),
+            enabled('MACOS_26', 'macos-26', 'arm64'),
+            enabled('MACOS_26_INTEL', 'macos-26-intel', 'x86_64'),
+            enabled('MACOS_15', 'macos-15', 'arm64'),
+            enabled('MACOS_15_INTEL', 'macos-15-intel', 'x86_64'),
+            enabled('MACOS_14', 'macos-14', 'arm64'),
+            enabled('MACOS_26_LARGE', 'macos-26-large', 'x86_64'),
+            enabled('MACOS_26_XLARGE', 'macos-26-xlarge', 'arm64'),
+            enabled('MACOS_15_LARGE', 'macos-15-large', 'x86_64'),
+            enabled('MACOS_15_XLARGE', 'macos-15-xlarge', 'arm64'),
+          ].filter(Boolean);
+
+          if (!entries.length) {
+            throw new Error('No macOS runners selected');
+          }
+          const matrix = { include: entries };
+          console.log(`matrix=${JSON.stringify(matrix)}`);
+          console.log(`matrix=${JSON.stringify(matrix)}`);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `matrix=${JSON.stringify(matrix)}\n`);
+          NODE
+
+  build-macos:
+    needs: select-macos-matrix
+    name: Build on ${{ matrix.runner }} (${{ matrix.target-arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.select-macos-matrix.outputs.matrix) }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Display Dispatch Inputs & Host Architecture
+        run: |
+          echo "=== Workflow Dispatch Options ==="
+          echo "Runner Target Input: ${{ inputs.runner_target }}"
+          echo "Debug Mode Input:   ${{ inputs.enable_debug }}"
+          echo "Cargo Flags Input:  ${{ inputs.custom_cargo_args }}"
+          echo ""
+          echo "=== OS & Architecture Details ==="
+          sw_vers
+          echo "Kernel architecture: $(uname -m)"
+          echo "Machine processor:   $(uname -p)"
+
+      - name: Verify Architecture Expectation
+        run: |
+          EXPECTED="${{ matrix.target-arch }}"
+          ACTUAL="$(uname -m)"
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "Error: Expected $EXPECTED but running on $ACTUAL"
+            exit 1
+          else
+            echo "Successfully running on $ACTUAL as expected."
+          fi
+
+      - name: Print Build Environment Tools
+        run: |
+          echo "Xcode Version:"
+          xcode-select -p
+          xcodebuild -version
+
+          echo "Compiler path:"
+          which clang
+          clang --version
+
+      - name: Run Cargo Build
+        run: |
+          if [ "${{ inputs.enable_debug }}" = "true" ]; then
+            set -x
+            export RUST_BACKTRACE=1
+          fi
+
+          CARGO_FLAGS="${{ inputs.custom_cargo_args || '--release' }}"
+          echo "Executing: cargo build $CARGO_FLAGS"
+          cargo build $CARGO_FLAGS
