@@ -8,6 +8,82 @@ on:
     tags:
       - '**'
   workflow_dispatch:
+    inputs:
+      run_tests:
+        description: 'Run crate test matrix'
+        required: false
+        default: true
+        type: boolean
+      run_wasm_tests:
+        description: 'Run WASM tests'
+        required: false
+        default: true
+        type: boolean
+      run_cross:
+        description: 'Run cross-compilation checks'
+        required: false
+        default: true
+        type: boolean
+      run_msrv:
+        description: 'Run MSRV check'
+        required: false
+        default: true
+        type: boolean
+      run_features:
+        description: 'Run feature matrix check'
+        required: false
+        default: true
+        type: boolean
+      run_rustdoc:
+        description: 'Run rustdoc intra-doc link check'
+        required: false
+        default: true
+        type: boolean
+      run_clippy:
+        description: 'Run clippy'
+        required: false
+        default: true
+        type: boolean
+      run_ipfs:
+        description: 'Run IPFS integration tests'
+        required: false
+        default: true
+        type: boolean
+      run_examples:
+        description: 'Run examples build'
+        required: false
+        default: true
+        type: boolean
+      run_semver:
+        description: 'Run semver checks'
+        required: false
+        default: true
+        type: boolean
+      run_rustfmt:
+        description: 'Run rustfmt'
+        required: false
+        default: true
+        type: boolean
+      run_manifest:
+        description: 'Run manifest lint'
+        required: false
+        default: true
+        type: boolean
+      run_proto:
+        description: 'Run proto file checks'
+        required: false
+        default: true
+        type: boolean
+      run_lockfile:
+        description: 'Run lockfile up-to-date check'
+        required: false
+        default: true
+        type: boolean
+      run_cargo_deny:
+        description: 'Run cargo-deny'
+        required: false
+        default: true
+        type: boolean
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -20,6 +96,7 @@ env:
 jobs:
   test:
     name: Test ${{ matrix.crate }}
+    if: github.event_name != 'workflow_dispatch' || inputs.run_tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: gather_published_crates
@@ -104,6 +181,7 @@ jobs:
 
   wasm_tests:
     name: Run all WASM tests
+    if: github.event_name != 'workflow_dispatch' || inputs.run_wasm_tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -124,6 +202,7 @@ jobs:
 
   cross:
     name: Compile on ${{ matrix.target }}
+    if: github.event_name != 'workflow_dispatch' || inputs.run_cross
     strategy:
       matrix:
         include:
@@ -156,6 +235,7 @@ jobs:
 
   msrv:
     name: Compile with MSRV
+    if: github.event_name != 'workflow_dispatch' || inputs.run_msrv
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -180,6 +260,7 @@ jobs:
 
   feature_matrix: # Test various feature combinations work correctly
     name: Compile with select features (${{ matrix.features }})
+    if: github.event_name != 'workflow_dispatch' || inputs.run_features
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -201,6 +282,7 @@ jobs:
 
   check-rustdoc-links:
     name: Check rustdoc intra-doc links
+    if: github.event_name != 'workflow_dispatch' || inputs.run_rustdoc
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -217,6 +299,7 @@ jobs:
         run: RUSTDOCFLAGS="--deny rustdoc::broken_intra_doc_links --deny warnings" cargo doc --verbose --workspace --no-deps --all-features --document-private-items
 
   clippy:
+    if: github.event_name != 'workflow_dispatch' || inputs.run_clippy
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -243,6 +326,7 @@ jobs:
 
   ipfs-integration-test:
     name: IPFS Integration tests
+    if: github.event_name != 'workflow_dispatch' || inputs.run_ipfs
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -262,6 +346,7 @@ jobs:
         run: cd ./examples/ipfs-kad/ && RUST_LOG=libp2p_swarm=debug,libp2p_kad=trace,libp2p_tcp=debug cargo run -- put-pk-record
 
   examples:
+    if: github.event_name != 'workflow_dispatch' || inputs.run_examples
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -293,6 +378,7 @@ jobs:
           wasm-pack build --target web --out-dir static
 
   semver:
+    if: github.event_name != 'workflow_dispatch' || inputs.run_semver
     runs-on: ubuntu-latest
     env:
       # Unset the global `RUSTFLAGS` env to allow warnings.
@@ -311,6 +397,7 @@ jobs:
       - uses: obi1kenobi/cargo-semver-checks-action@v2
 
   rustfmt:
+    if: github.event_name != 'workflow_dispatch' || inputs.run_rustfmt
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -325,6 +412,7 @@ jobs:
         run: cargo fmt -- --check
 
   manifest_lint:
+    if: github.event_name != 'workflow_dispatch' || inputs.run_manifest
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -359,6 +447,7 @@ jobs:
 
   check-proto-files:
     name: Check for changes in proto files
+    if: github.event_name != 'workflow_dispatch' || inputs.run_proto
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -379,6 +468,7 @@ jobs:
 
   ensure-lockfile-uptodate:
     name: Ensure that `Cargo.lock` is up-to-date
+    if: github.event_name != 'workflow_dispatch' || inputs.run_lockfile
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -386,6 +476,7 @@ jobs:
       - run: cargo metadata --locked --format-version=1 > /dev/null
 
   cargo-deny:
+    if: github.event_name != 'workflow_dispatch' || inputs.run_cargo_deny
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v7
