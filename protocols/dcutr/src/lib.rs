@@ -21,6 +21,7 @@
 //! Implementation of the [libp2p Direct Connection Upgrade through Relay
 //! specification](https://github.com/libp2p/specs/blob/master/relay/DCUtR.md).
 
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 mod behaviour;
 mod handler;

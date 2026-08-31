@@ -1,3 +1,5 @@
+#![cfg_attr(docsrs, feature(doc_cfg))]
+
 use core::ops::Range;
 
 use num_traits::sign::Unsigned;

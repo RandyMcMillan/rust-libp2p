@@ -79,6 +79,7 @@
 //! is to make the hash a part of the remote's multiaddr. On the server side, we turn
 //! certificate verification off.
 
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 #[cfg(feature = "tokio")]
 pub mod tokio;

@@ -25,6 +25,7 @@
 //! This struct will automatically try to map the ports externally to internal
 //! addresses on the gateway.
 
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 #[cfg(feature = "tokio")]
 mod behaviour;

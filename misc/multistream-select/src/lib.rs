@@ -88,6 +88,7 @@
 //! });
 //! ```
 
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 mod dialer_select;
 mod length_delimited;

@@ -51,6 +51,7 @@
 //! remote should behave: how to handle incoming substreams, which protocols
 //! are supported, when to open a new outbound substream, etc.
 
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 mod connection;
 mod executor;

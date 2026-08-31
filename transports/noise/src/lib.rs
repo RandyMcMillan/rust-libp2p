@@ -55,6 +55,7 @@
 //!
 //! [noise]: http://noiseprotocol.org/
 
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 mod io;
 mod protocol;
