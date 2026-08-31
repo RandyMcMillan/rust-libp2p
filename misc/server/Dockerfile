@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.5-labs
 FROM rust:1.88.0 as chef
-RUN wget -q -O- https://github.com/LukeMathWalker/cargo-chef/releases/download/v0.1.62/cargo-chef-x86_64-unknown-linux-gnu.tar.gz | tar -zx -C /usr/local/bin
+RUN cargo install cargo-chef --version 0.1.62 --locked
 WORKDIR /app
 
 FROM chef AS planner
