@@ -1,0 +1,15 @@
+# act configuration for rust-libp2p
+# Usage: act -W .github/workflows/interop-test.yml workflow_dispatch
+#
+# Note: The interop TEST execution step requires upstream libp2p/test-plans
+# infrastructure (Redis, Docker compose network, other implementations).
+# That cannot run locally. Only the Docker BUILD steps work locally.
+
+# Use image that has Docker pre-installed
+-P ubuntu-latest=catthehacker/ubuntu:act-latest
+
+# Mount host Docker socket so buildx works inside act container
+--container-daemon-socket /var/run/docker.sock
+
+# Default event
+workflow_dispatch

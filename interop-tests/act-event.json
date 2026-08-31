@@ -1,0 +1,10 @@
+{
+  "inputs": {
+    "run_native": true,
+    "run_chromium": false,
+    "run_hole_punch": false,
+    "worker_count": 16,
+    "ref_tag": "head",
+    "runner_os": "ubuntu-latest"
+  }
+}
