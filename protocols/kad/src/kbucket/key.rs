@@ -33,8 +33,8 @@ use sha2::{
 
 use crate::record;
 
-#[allow(deprecated)]
 mod u256 {
+    #![allow(deprecated)]
     use uint::construct_uint;
     construct_uint! {
         /// 256-bit unsigned integer.
