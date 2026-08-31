@@ -2,6 +2,8 @@ name: Publish docker images
 
 on:
   push:
+    branches:
+      - master
     tags:
       - 'libp2p-server-**'
   workflow_dispatch:
@@ -16,6 +18,10 @@ on:
         required: false
         default: ''
         type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   server:
