@@ -243,7 +243,7 @@ async fn await_noise_data_channel_open(
         }
         Either::Right(((), _)) => {
             return Err(Error::Internal(
-                "data channel opening took longer than 10 seconds (see logs)".into(),
+                "data channel opening took longer than 30 seconds (see logs)".into(),
             ));
         }
     };

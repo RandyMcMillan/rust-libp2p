@@ -130,13 +130,17 @@ This was **reverted in `a5e94a0e3`** because:
 2. `continue-on-error` masked real infrastructure problems without addressing the root cause
 3. The failures are confirmed upstream issues; hiding them in this fork creates a maintenance trap
 
-## CI Workflow Dispatch Fix (2026-08-31)
+## CI Workflow Fix (2026-08-31)
 
-To prevent upstream-broken tests from failing every push/PR, the `interop-test.yml` workflow was restructured in commit `346539064`:
+To prevent upstream-broken tests from failing every push/PR while still keeping the tests visible, the `interop-test.yml` workflow was restructured across commits `caaa9cb2` and `95db90e4`:
 
-- **`run-transport-interop`** — now only runs `chromium` on `push` and `pull_request` (chromium tests are green)
-- **`run-native-transport-interop`** — new job, runs only on `workflow_dispatch` (native tests fail upstream)
-- **`run-holepunching-interop`** — runs only on `workflow_dispatch` (hole-punch tests fail upstream)
+- **`run-transport-interop`** — runs `chromium` on `push`, `pull_request`, and `workflow_dispatch` (chromium tests are green)
+- **`run-native-transport-interop`** — runs on `push` and `pull_request` so the dashboard is always visible, but uses `known-errors` to mark expected upstream failures yellow. Only unexpected red failures will fail the workflow.
+- **`run-holepunching-interop`** — runs only on `workflow_dispatch` with `continue-on-error: true` (hole-punch tests fail upstream)
+
+The `known-errors` regex covers:
+- All `webrtc-direct` combinations (universal failure)
+- Outbound TCP/WS/QUIC from `native-rust-libp2p-head` to `python-v0.x`, `jvm-v1.3`, and `js-v*.x`
 
 This fixes the recurring failure seen in:
 - https://github.com/RandyMcMillan/rust-libp2p/actions/runs/33396180192/job/99501130731 (hole-punch test timeout)
@@ -144,9 +148,9 @@ This fixes the recurring failure seen in:
 
 ## Recommended Next Steps
 
-1. **Short term:** Do not block CI on interop test results. The workflow can be triggered manually via `workflow_dispatch` for targeted testing.
+1. **Short term:** Monitor `known-errors` regex — if upstream fixes issues, remove them from the regex so the tests become hard requirements.
 2. **Medium term:** File or track upstream issues in `libp2p/test-plans` and `libp2p/rust-libp2p` for:
    - WebRTC-direct interop regressions
    - QUIC directional dialing failures
    - Hole-punch test infrastructure reliability
-3. **Long term:** Re-enable automatic interop testing once upstream issues are resolved.
+3. **Long term:** Once upstream issues are resolved, remove `known-errors` entirely and let all native tests pass organically.
