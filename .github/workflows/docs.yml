@@ -1,10 +1,5 @@
 name: Build and host documentation
 on:
-  push:
-    branches:
-      - master
-    tags:
-      - '**'
   workflow_dispatch:
 
 jobs:

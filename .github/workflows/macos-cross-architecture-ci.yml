@@ -1,12 +1,6 @@
 name: macOS Cross-Architecture CI
 
 on:
-  push:
-    branches: [ "main", "master" ]
-    tags:
-      - '**'
-  pull_request:
-    branches: [ "main", "master" ]
   workflow_dispatch:
     inputs:
       macos_latest:
