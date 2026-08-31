@@ -9,6 +9,8 @@ on:
   push:
     branches:
       - master # Caches are only created on master branch.
+    tags:
+      - '**'
   workflow_dispatch:
 
 concurrency:

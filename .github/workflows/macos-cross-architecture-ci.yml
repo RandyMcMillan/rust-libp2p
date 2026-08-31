@@ -3,9 +3,15 @@ name: macOS Cross-Architecture CI
 on:
   push:
     branches: [ "main", "master" ]
+    tags:
+      - '**'
   pull_request:
     branches: [ "main", "master" ]
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
     inputs:
       macos_latest:
         description: 'Include macos-latest'
@@ -69,6 +75,22 @@ on:
         type: string
 
 jobs:
+  macos-cache-factory:
+    name: macOS Cache Factory
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: stable-cache
+
+      - name: Compile workspace with stable Rust
+        run: cargo test --all-features --all-targets --workspace --no-run
+
   select-macos-matrix:
     name: Select macOS matrix
     runs-on: ubuntu-latest
