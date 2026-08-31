@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.5-labs
 FROM rust:1.88.0 as chef
-RUN cargo install cargo-chef --version 0.1.62 --locked
+RUN cargo install cargo-chef --version 0.1.78 --locked
 WORKDIR /app
 
 FROM chef AS planner
