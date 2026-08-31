@@ -236,7 +236,7 @@ async fn create_noise_data_channel(
 async fn await_noise_data_channel_open(
     rx: oneshot::Receiver<Arc<DataChannel>>,
 ) -> Result<Stream, Error> {
-    let channel = match futures::future::select(rx, Delay::new(Duration::from_secs(10))).await {
+    let channel = match futures::future::select(rx, Delay::new(Duration::from_secs(30))).await {
         Either::Left((Ok(channel), _)) => channel,
         Either::Left((Err(_), _)) => {
             return Err(Error::Internal("failed to open data channel".to_owned()));

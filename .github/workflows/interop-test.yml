@@ -83,10 +83,10 @@ jobs:
 
   run-native-transport-interop:
     name: Run native transport interoperability tests
-    # Native tests have upstream failures (see INTEROP_FAILURES.md).
-    # continue-on-error allows manual dispatch runs to stay green while
-    # still producing test artifacts and step summaries.
-    if: github.event_name == 'workflow_dispatch' && inputs.run_native
+    # Native tests have upstream webrtc-direct failures tracked in test-plans knownErrors.json.
+    # We run them on every push so the dashboard is always visible.
+    # continue-on-error prevents upstream-flaky failures from blocking CI.
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository || (github.event_name == 'workflow_dispatch' && inputs.run_native)
     continue-on-error: true
     runs-on: ${{ inputs.runner_os || 'ubuntu-latest' }}
     steps:
@@ -111,6 +111,7 @@ jobs:
           s3-secret-access-key: ${{ secrets.S3_LIBP2P_BUILD_CACHE_AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_REGION }}
           worker-count: ${{ inputs.worker_count }}
+          known-errors: rust.*\(webrtc-direct\)
   run-holepunching-interop:
     name: Run hole-punch interoperability tests
     # Upstream test-plans infrastructure is broken for hole-punch tests.
