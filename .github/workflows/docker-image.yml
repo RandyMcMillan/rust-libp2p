@@ -6,6 +6,7 @@ on:
       - 'master'
     tags:
       - 'libp2p-server-**'
+  workflow_dispatch:
 
 jobs:
   server:

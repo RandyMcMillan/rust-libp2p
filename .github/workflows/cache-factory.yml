@@ -9,6 +9,7 @@ on:
   push:
     branches:
       - master # Caches are only created on master branch.
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
