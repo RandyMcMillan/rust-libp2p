@@ -30,14 +30,17 @@ use sha2::{
     Digest, Sha256,
     digest::common::array::{Array, typenum::U32},
 };
-use uint::*;
-
 use crate::record;
 
-construct_uint! {
-    /// 256-bit unsigned integer.
-    pub struct U256(4);
+#[allow(deprecated)]
+mod u256 {
+    use uint::construct_uint;
+    construct_uint! {
+        /// 256-bit unsigned integer.
+        pub struct U256(4);
+    }
 }
+pub use u256::U256;
 
 /// A `Key` in the DHT keyspace with preserved preimage.
 ///
