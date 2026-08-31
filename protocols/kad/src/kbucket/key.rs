@@ -30,6 +30,7 @@ use sha2::{
     Digest, Sha256,
     digest::common::array::{Array, typenum::U32},
 };
+
 use crate::record;
 
 #[allow(deprecated)]
