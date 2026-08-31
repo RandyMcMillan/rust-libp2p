@@ -380,6 +380,7 @@ impl Keypair {
 
     /// Return the secret key of the [`Keypair`].
     #[allow(dead_code)]
+    #[allow(clippy::unnecessary_wraps)]
     pub(crate) fn secret(&self) -> Option<[u8; 32]> {
         match self.keypair {
             #[cfg(feature = "ed25519")]
