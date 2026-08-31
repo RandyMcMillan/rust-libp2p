@@ -1,0 +1,19 @@
+{
+  "inputs": {
+    "run_tests": true,
+    "run_wasm_tests": true,
+    "run_cross": true,
+    "run_msrv": true,
+    "run_features": true,
+    "run_rustdoc": true,
+    "run_clippy": true,
+    "run_ipfs": true,
+    "run_examples": true,
+    "run_semver": true,
+    "run_rustfmt": true,
+    "run_manifest": true,
+    "run_proto": true,
+    "run_lockfile": true,
+    "run_cargo_deny": true
+  }
+}
