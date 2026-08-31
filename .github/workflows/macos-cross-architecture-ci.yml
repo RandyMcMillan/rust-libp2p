@@ -8,10 +8,6 @@ on:
   pull_request:
     branches: [ "main", "master" ]
   workflow_dispatch:
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
     inputs:
       macos_latest:
         description: 'Include macos-latest'
@@ -73,6 +69,10 @@ concurrency:
         required: false
         default: '--release'
         type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   macos-cache-factory:
