@@ -48,3 +48,30 @@ the following (from the root directory of this repository):
 ```
 RUST_LIBP2P="$PWD"; (cd <path to >/libp2p/test-plans/multidim-interop/ && npm run test -- --extra-version=$RUST_LIBP2P/interop-tests/ping-version.json --name-filter="rust-libp2p-head")
 ```
+
+# Local CI workflow validation with `act`
+
+You can validate workflow changes locally using [`act`](https://github.com/nektos/act) and the helper script:
+
+```bash
+# List jobs in the interop workflow
+../scripts/act-ci.sh -w interop --list
+
+# Build the interop Docker image locally (build step only; test execution requires upstream infrastructure)
+../scripts/act-ci.sh -w interop --chromium
+
+# Run with verbose output
+../scripts/act-ci.sh -w interop --chromium -v
+```
+
+> **Note:** The interop *test execution* requires the upstream `libp2p/test-plans` infrastructure (Redis, Docker Compose network, and images from other libp2p implementations). Only the Docker *build* steps work reliably in a local `act` environment.
+
+## S3 cache import warning
+
+When running `../scripts/build-interop-image.sh` locally you may see:
+
+```
+ERROR importing cache manifest from s3:12265987524318645469
+```
+
+This is **not fatal** — the build continues from scratch. It simply means the S3 build cache (used by upstream CI for speed) is not accessible locally. To use a local cache instead, omit the S3 environment variables or configure your own S3 bucket in the `.secrets` file used by `act`.
