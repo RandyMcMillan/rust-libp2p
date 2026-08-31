@@ -16,4 +16,5 @@ COPY . .
 RUN cargo build --release --package libp2p-server
 
 FROM gcr.io/distroless/cc
+COPY --from=builder /app/target/release/libp2p-server /bin/libp2p-server
 CMD ["libp2p-server"]
