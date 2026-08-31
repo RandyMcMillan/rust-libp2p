@@ -163,6 +163,12 @@ jobs:
           which clang
           clang --version
 
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: stable-cache
+
       - name: Run Cargo Build
         run: |
           if [ "${{ inputs.enable_debug }}" = "true" ]; then
