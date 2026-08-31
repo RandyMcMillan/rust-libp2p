@@ -84,10 +84,10 @@ jobs:
           MACOS_15: ${{ github.event_name == 'workflow_dispatch' && inputs.macos_15 || github.event_name != 'workflow_dispatch' }}
           MACOS_15_INTEL: ${{ github.event_name == 'workflow_dispatch' && inputs.macos_15_intel || github.event_name != 'workflow_dispatch' }}
           MACOS_14: ${{ github.event_name == 'workflow_dispatch' && inputs.macos_14 || github.event_name != 'workflow_dispatch' }}
-          MACOS_26_LARGE: ${{ github.event_name == 'workflow_dispatch' && inputs.macos_26_large || github.event_name != 'workflow_dispatch' }}
-          MACOS_26_XLARGE: ${{ github.event_name == 'workflow_dispatch' && inputs.macos_26_xlarge || github.event_name != 'workflow_dispatch' }}
-          MACOS_15_LARGE: ${{ github.event_name == 'workflow_dispatch' && inputs.macos_15_large || github.event_name != 'workflow_dispatch' }}
-          MACOS_15_XLARGE: ${{ github.event_name == 'workflow_dispatch' && inputs.macos_15_xlarge || github.event_name != 'workflow_dispatch' }}
+          MACOS_26_LARGE: ${{ github.event_name == 'workflow_dispatch' && inputs.macos_26_large }}
+          MACOS_26_XLARGE: ${{ github.event_name == 'workflow_dispatch' && inputs.macos_26_xlarge }}
+          MACOS_15_LARGE: ${{ github.event_name == 'workflow_dispatch' && inputs.macos_15_large }}
+          MACOS_15_XLARGE: ${{ github.event_name == 'workflow_dispatch' && inputs.macos_15_xlarge }}
         run: |
           node <<'NODE'
           const fs = require('node:fs');
