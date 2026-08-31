@@ -2,8 +2,6 @@ name: Publish docker images
 
 on:
   push:
-    branches:
-      - 'master'
     tags:
       - 'libp2p-server-**'
   workflow_dispatch:
