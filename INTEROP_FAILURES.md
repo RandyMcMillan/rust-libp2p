@@ -75,6 +75,7 @@ Incoming connection failed: Transport(Other(Custom { kind: Other, error: Right(C
 | Chromium image build failed (outdated Rust/cargo-chef) | **Fixed** | `0c9653c74` |
 | Docker server image missing binary | **Fixed** | `a233a7407` |
 | Docker multi-arch build missing QEMU | **Fixed** | `113a144ff` |
+| Native/hole-punch tests blocking CI | **Fixed** | `346539064` |
 | Test runtime failures (webrtc, quic, tcp directional) | **Upstream** | N/A |
 | Hole-punch QUIC handshake timeouts | **Upstream** | N/A |
 
@@ -128,6 +129,18 @@ This was **reverted in `a5e94a0e3`** because:
 1. Removing `webrtc-direct` only hid one symptom — QUIC and TCP combinations still failed in certain directions
 2. `continue-on-error` masked real infrastructure problems without addressing the root cause
 3. The failures are confirmed upstream issues; hiding them in this fork creates a maintenance trap
+
+## CI Workflow Dispatch Fix (2026-08-31)
+
+To prevent upstream-broken tests from failing every push/PR, the `interop-test.yml` workflow was restructured in commit `346539064`:
+
+- **`run-transport-interop`** — now only runs `chromium` on `push` and `pull_request` (chromium tests are green)
+- **`run-native-transport-interop`** — new job, runs only on `workflow_dispatch` (native tests fail upstream)
+- **`run-holepunching-interop`** — runs only on `workflow_dispatch` (hole-punch tests fail upstream)
+
+This fixes the recurring failure seen in:
+- https://github.com/RandyMcMillan/rust-libp2p/actions/runs/33396180192/job/99501130731 (hole-punch test timeout)
+- https://github.com/RandyMcMillan/rust-libp2p/actions/runs/33389727986/job/99480333414 (native transport test failures)
 
 ## Recommended Next Steps
 
