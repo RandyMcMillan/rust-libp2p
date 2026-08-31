@@ -63,10 +63,6 @@ jobs:
       - name: Build ${{ matrix.flavour }} image
         run: ./scripts/build-interop-image.sh
         env:
-          AWS_BUCKET_NAME: ${{ vars.S3_LIBP2P_BUILD_CACHE_BUCKET_NAME }}
-          AWS_ACCESS_KEY_ID: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_LIBP2P_BUILD_CACHE_AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_REGION }}
           FLAVOUR: ${{ matrix.flavour }}
 
       - name: Run ${{ matrix.flavour }} tests
@@ -75,19 +71,14 @@ jobs:
           test-filter: ${{ matrix.flavour }}-rust-libp2p-${{ inputs.ref_tag || 'head' }}
           test-results-suffix: ${{matrix.flavour}}
           extra-versions: ${{ github.workspace }}/interop-tests/${{ matrix.flavour }}-ping-version.json
-          s3-cache-bucket: ${{ vars.S3_LIBP2P_BUILD_CACHE_BUCKET_NAME }}
-          s3-access-key-id: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_ACCESS_KEY_ID }}
-          s3-secret-access-key: ${{ secrets.S3_LIBP2P_BUILD_CACHE_AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_REGION }}
           worker-count: ${{ inputs.worker_count }}
 
   run-native-transport-interop:
     name: Run native transport interoperability tests
-    # Native tests have upstream webrtc-direct failures tracked in test-plans knownErrors.json.
-    # We run them on every push so the dashboard is always visible.
-    # continue-on-error prevents upstream-flaky failures from blocking CI.
+    # Native tests have upstream compatibility failures. We run them on every
+    # push so the dashboard is visible. Known errors are marked yellow; only
+    # unexpected red failures will fail the workflow.
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository || (github.event_name == 'workflow_dispatch' && inputs.run_native)
-    continue-on-error: true
     runs-on: ${{ inputs.runner_os || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v7
@@ -95,10 +86,6 @@ jobs:
       - name: Build native image
         run: ./scripts/build-interop-image.sh
         env:
-          AWS_BUCKET_NAME: ${{ vars.S3_LIBP2P_BUILD_CACHE_BUCKET_NAME }}
-          AWS_ACCESS_KEY_ID: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_LIBP2P_BUILD_CACHE_AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_REGION }}
           FLAVOUR: native
       - name: Run native tests
         uses: libp2p/test-plans/.github/actions/run-transport-interop-test@master
@@ -106,12 +93,8 @@ jobs:
           test-filter: native-rust-libp2p-${{ inputs.ref_tag || 'head' }}
           test-results-suffix: native
           extra-versions: ${{ github.workspace }}/interop-tests/native-ping-version.json
-          s3-cache-bucket: ${{ vars.S3_LIBP2P_BUILD_CACHE_BUCKET_NAME }}
-          s3-access-key-id: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_ACCESS_KEY_ID }}
-          s3-secret-access-key: ${{ secrets.S3_LIBP2P_BUILD_CACHE_AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_REGION }}
           worker-count: ${{ inputs.worker_count }}
-          known-errors: rust.*\(webrtc-direct\)
+          known-errors: native-rust-libp2p-head x (python-v0\.x|jvm-v1\.3|js-v[0-9]\.x)|webrtc-direct
   run-holepunching-interop:
     name: Run hole-punch interoperability tests
     # Upstream test-plans infrastructure is broken for hole-punch tests.
