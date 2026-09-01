@@ -1,7 +1,7 @@
 {
   "inputs": {
-    "run_native": true,
     "run_chromium": false,
+    "run_native": true,
     "run_hole_punch": false,
     "worker_count": 16,
     "ref_tag": "head",
